@@ -4,6 +4,8 @@ import axios from 'axios';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MessagesService } from '../messages/messages.service';
 import { WhatsappService } from './whatsapp.service';
+import { FlowEngineService } from './flow-engine.service';
+import { DepartmentRoutingService } from '../departments/department-routing.service';
 
 @Injectable()
 export class WahaPollingService implements OnModuleInit, OnModuleDestroy {
@@ -20,11 +22,13 @@ export class WahaPollingService implements OnModuleInit, OnModuleDestroy {
     private prisma: PrismaService,
     private messagesService: MessagesService,
     private whatsappService: WhatsappService,
+    private flowEngineService: FlowEngineService,
+    private departmentRoutingService: DepartmentRoutingService,
   ) {
     this.provider =
       this.configService.get<string>('WHATSAPP_PROVIDER') || 'META';
     this.wahaApiUrl =
-      this.configService.get<string>('WAHA_API_URL') || 'http://localhost:3001';
+      this.configService.get<string>('WAHA_API_URL') || 'http://192.168.10.156:3101';
     this.wahaApiKey =
       this.configService.get<string>('WAHA_API_KEY') || '';
     this.wahaSession =
@@ -185,6 +189,51 @@ export class WahaPollingService implements OnModuleInit, OnModuleDestroy {
         this.logger.log(
           `Processing message: ${whatsappMessageId} from ${customerPhone}`,
         );
+
+        const conversation =
+          await this.messagesService.findOrCreateConversation(
+            company.id,
+            customerPhone,
+            customerName,
+            chatId,
+            contactProfile,
+          );
+
+        if (conversation.flowState === 'GREETING') {
+          if (!conversation.greetingSentAt) {
+            await this.flowEngineService.sendGreeting(conversation);
+            await this.prisma.conversation.update({
+              where: { id: conversation.id },
+              data: { greetingSentAt: new Date() },
+            });
+          } else {
+            const body = (msg.body || '').trim();
+            const dept = this.flowEngineService.processMenuChoice(body);
+            if (dept) {
+              await this.departmentRoutingService.routeToDepartment(
+                conversation.id,
+                dept,
+                company.id,
+              );
+            } else {
+              await this.flowEngineService.handleInvalidChoice(conversation);
+            }
+          }
+          // Salvar a mensagem ANTES de continuar — garante idempotência no próximo ciclo
+          // (sem isso, markAsRead falhar causa reprocessamento a cada 5s → loop de "indisponíveis")
+          await this.messagesService.handleIncomingMessage(
+            company.id,
+            customerPhone,
+            whatsappMessageId,
+            content,
+            type,
+            customerName,
+            mediaUrl,
+            chatId,
+            contactProfile,
+          );
+          continue;
+        }
 
         await this.messagesService.handleIncomingMessage(
           company.id,

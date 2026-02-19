@@ -11,6 +11,7 @@ import {
   FileText,
   Mic,
   Video,
+  Bot,
 } from 'lucide-react';
 
 function StatusIcon({ status }: { status: MessageStatus }) {
@@ -79,9 +80,10 @@ function MediaContent({ message }: { message: Message }) {
   }
 }
 
-export function MessageBubble({ message }: { message: Message }) {
+export function MessageBubble({ message, departmentName }: { message: Message; departmentName?: string }) {
   const isOutbound = message.direction === Direction.OUTBOUND;
   const isMediaMessage = message.type !== MessageType.TEXT;
+  const isBot = message.isBot === true;
 
   return (
     <div
@@ -93,14 +95,29 @@ export function MessageBubble({ message }: { message: Message }) {
       <div
         className={cn(
           'max-w-[70%] rounded-lg px-3 py-2 shadow-sm',
-          isOutbound
-            ? 'bg-green-100 text-gray-900'
-            : 'bg-white text-gray-900 border',
+          isBot
+            ? 'bg-gray-100 text-gray-700 border border-gray-200 italic'
+            : isOutbound
+              ? 'bg-green-100 text-gray-900'
+              : 'bg-white text-gray-900 border',
         )}
       >
-        {isOutbound && message.sentBy && (
+        {isBot && (
+          <p className="text-xs font-medium text-gray-500 mb-1 flex items-center gap-1">
+            <Bot className="h-3 w-3" /> Robô
+          </p>
+        )}
+        {isOutbound && !isBot && message.sentBy && (
           <p className="text-xs font-medium text-green-700 mb-1">
-            {message.sentBy.name}
+            <span className="font-semibold">
+              {message.sentBy.name}
+              {departmentName && (
+                <>
+                  {' '}
+                  <strong className="font-bold">{departmentName}</strong>
+                </>
+              )}
+            </span>
           </p>
         )}
 

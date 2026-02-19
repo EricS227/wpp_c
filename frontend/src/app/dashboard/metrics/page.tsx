@@ -1,9 +1,11 @@
 'use client';
 
+import { useState } from 'react';
 import {
   useDashboardMetrics,
   useConversationMetrics,
   useAgentMetrics,
+  type MetricsPeriod,
 } from '@/hooks/useMetrics';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -28,10 +30,19 @@ import {
   Archive,
 } from 'lucide-react';
 
+const PERIODS: { value: MetricsPeriod; label: string }[] = [
+  { value: '1d', label: 'Hoje' },
+  { value: '7d', label: '7 dias' },
+  { value: '30d', label: '30 dias' },
+  { value: '90d', label: '90 dias' },
+];
+
 export default function MetricsPage() {
-  const { data: dashboard, isLoading: loadingDashboard } = useDashboardMetrics();
-  const { data: convMetrics, isLoading: loadingConv } = useConversationMetrics();
-  const { data: agents, isLoading: loadingAgents } = useAgentMetrics();
+  const [period, setPeriod] = useState<MetricsPeriod>('30d');
+
+  const { data: dashboard, isLoading: loadingDashboard } = useDashboardMetrics(period);
+  const { data: convMetrics, isLoading: loadingConv } = useConversationMetrics(period);
+  const { data: agents, isLoading: loadingAgents } = useAgentMetrics(period);
 
   const isLoading = loadingDashboard || loadingConv || loadingAgents;
 
@@ -47,8 +58,28 @@ export default function MetricsPage() {
     <div className="min-h-full bg-[#E8F5E9]">
       {/* WhatsApp-style header strip */}
       <div className="bg-[#075E54] text-white px-6 py-4">
-        <h1 className="text-2xl font-bold">Metricas</h1>
-        <p className="text-[#A8DAB5] text-sm mt-0.5">Visao geral do atendimento</p>
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h1 className="text-2xl font-bold">Metricas</h1>
+            <p className="text-[#A8DAB5] text-sm mt-0.5">Visao geral do atendimento</p>
+          </div>
+          {/* Period selector */}
+          <div className="flex gap-1 bg-[#054D45] rounded-lg p-1">
+            {PERIODS.map((p) => (
+              <button
+                key={p.value}
+                onClick={() => setPeriod(p.value)}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  period === p.value
+                    ? 'bg-white text-[#075E54]'
+                    : 'text-white hover:bg-[#075E54]'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="p-6 space-y-6">
@@ -115,7 +146,7 @@ export default function MetricsPage() {
             title="Tempo Medio 1a Resposta"
             value={convMetrics?.avgFirstResponseTimeFormatted ?? '0s'}
             icon={<Clock className="h-4 w-4 text-[#128C7E]" />}
-            description="Ultimos 30 dias"
+            description={`Periodo: ${PERIODS.find((p) => p.value === period)?.label ?? period}`}
             isText
           />
         </div>
@@ -123,22 +154,22 @@ export default function MetricsPage() {
         {/* Conversation Trends */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <MetricCard
-            title="Novas (7 dias)"
-            value={convMetrics?.newConversationsLast7Days ?? 0}
+            title={`Novas (${PERIODS.find((p) => p.value === period)?.label ?? period})`}
+            value={convMetrics?.newConversationsInPeriod ?? convMetrics?.newConversationsLast7Days ?? 0}
             icon={<MessageSquare className="h-4 w-4 text-[#34B7F1]" />}
-            description="Conversas criadas nos ultimos 7 dias"
+            description={`Conversas criadas no periodo selecionado`}
           />
           <MetricCard
-            title="Novas (30 dias)"
-            value={convMetrics?.newConversationsLast30Days ?? 0}
+            title={`Total do Periodo`}
+            value={dashboard?.conversations.total ?? 0}
             icon={<MessageSquare className="h-4 w-4 text-[#128C7E]" />}
-            description="Conversas criadas nos ultimos 30 dias"
+            description={`Todas as conversas no periodo`}
           />
           <MetricCard
-            title="Resolvidas (7 dias)"
-            value={convMetrics?.resolvedLast7Days ?? 0}
+            title={`Resolvidas (${PERIODS.find((p) => p.value === period)?.label ?? period})`}
+            value={convMetrics?.resolvedInPeriod ?? convMetrics?.resolvedLast7Days ?? 0}
             icon={<CheckCircle className="h-4 w-4 text-[#25D366]" />}
-            description="Finalizadas nos ultimos 7 dias"
+            description={`Finalizadas no periodo selecionado`}
           />
         </div>
 

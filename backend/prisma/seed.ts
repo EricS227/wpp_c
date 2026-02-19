@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { seedDepartments } from './seed-departments';
 
 const prisma = new PrismaClient();
 
@@ -11,13 +12,16 @@ async function main() {
     where: { whatsappPhoneNumberId: 'your_phone_number_id' },
     update: {},
     create: {
-      name: 'Empresa Demo',
+      name: 'SIM Estearina Indústria e Comércio Ltda',
       whatsappPhoneNumberId: 'your_phone_number_id',
       whatsappAccessToken: 'your_meta_access_token',
       webhookVerifyToken: 'your_webhook_verify_token_123',
     },
   });
   console.log('Company created:', company.name);
+
+  // Seed departments for this company
+  await seedDepartments(prisma, company.id);
 
   // Create admin user
   const adminPassword = await bcrypt.hash('admin123', 10);
@@ -36,6 +40,13 @@ async function main() {
 
   // Create agent users
   const agentPassword = await bcrypt.hash('agent123', 10);
+  const comercialDept = await prisma.department.findUnique({
+    where: { companyId_slug: { companyId: company.id, slug: 'comercial' } },
+  });
+  const adminDept = await prisma.department.findUnique({
+    where: { companyId_slug: { companyId: company.id, slug: 'administrativo' } },
+  });
+
   const agent1 = await prisma.user.upsert({
     where: { email: 'atendente@empresa.com' },
     update: {},
@@ -45,8 +56,15 @@ async function main() {
       name: 'Atendente 1',
       role: 'AGENT',
       companyId: company.id,
+      departmentId: comercialDept?.id ?? null,
     },
   });
+  if (comercialDept && !agent1.departmentId) {
+    await prisma.user.update({
+      where: { id: agent1.id },
+      data: { departmentId: comercialDept.id },
+    });
+  }
 
   const agent2 = await prisma.user.upsert({
     where: { email: 'atendente2@empresa.com' },
@@ -57,8 +75,15 @@ async function main() {
       name: 'Atendente 2',
       role: 'AGENT',
       companyId: company.id,
+      departmentId: adminDept?.id ?? null,
     },
   });
+  if (adminDept && !agent2.departmentId) {
+    await prisma.user.update({
+      where: { id: agent2.id },
+      data: { departmentId: adminDept.id },
+    });
+  }
   console.log('Agents created');
 
   // --- MOCK CONVERSATIONS & MESSAGES ---

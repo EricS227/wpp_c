@@ -28,12 +28,12 @@ services:
     image: devlikeapro/waha
     container_name: wpp-waha
     ports:
-      - "3001:3000"
+      - "3101:3000"
     environment:
       - WAHA_DASHBOARD_USERNAME=admin
       - WAHA_DASHBOARD_PASSWORD=admin123
       - WAHA_API_KEY=wpp_waha_dev_key_2024
-      - WHATSAPP_HOOK_URL=http://host.docker.internal:4000/webhooks/waha
+      - WHATSAPP_HOOK_URL=http://192.168.10.156:4000/webhooks/waha
       - WHATSAPP_HOOK_EVENTS=message,message.any,message.ack
       - WHATSAPP_START_SESSION=default
     volumes:

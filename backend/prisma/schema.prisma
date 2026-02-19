@@ -13,6 +13,7 @@ model Company {
   whatsappPhoneNumberId String         @unique
   whatsappAccessToken   String         @db.Text
   webhookVerifyToken    String
+  greetingMessage      String?        @db.Text
   isActive              Boolean        @default(true)
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
@@ -22,27 +23,58 @@ model Company {
   messages              Message[]
   auditLogs             AuditLog[]
   quickReplies          QuickReply[]
+  departments           Department[]
+  conversationNotes     ConversationNote[]
 
   @@map("companies")
 }
 
-model User {
-  id           String   @id @default(uuid())
-  companyId    String
-  email        String   @unique
-  passwordHash String
-  name         String
-  role         Role     @default(AGENT)
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+model Department {
+  id                     String   @id @default(uuid())
+  companyId              String
+  name                   String
+  slug                   String
+  description            String?
+  color                  String   @default("#6366f1")
+  isRoot                 Boolean  @default(false)
+  isActive               Boolean  @default(true)
+  responseTimeoutMinutes Int      @default(3)
+  maxAgents              Int      @default(2)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
-  company      Company       @relation(fields: [companyId], references: [id])
-  assignments  Assignment[]
-  sentMessages Message[]     @relation("SentMessages")
-  auditLogs    AuditLog[]
+  company       Company        @relation(fields: [companyId], references: [id])
+  users         User[]
+  conversations Conversation[]
+
+  @@unique([companyId, slug])
+  @@map("departments")
+}
+
+model User {
+  id                String     @id @default(uuid())
+  companyId         String
+  departmentId      String?
+  email             String     @unique
+  passwordHash      String
+  name              String
+  role              Role       @default(AGENT)
+  onlineStatus      UserStatus @default(OFFLINE)
+  lastHeartbeatAt   DateTime?
+  isActive          Boolean    @default(true)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  company               Company        @relation(fields: [companyId], references: [id])
+  department            Department?  @relation(fields: [departmentId], references: [id])
+  assignments           Assignment[]
+  sentMessages          Message[]     @relation("SentMessages")
+  auditLogs             AuditLog[]
+  assignedConversations Conversation[] @relation("AssignedConversations")
+  conversationNotes     ConversationNote[]
 
   @@index([companyId, email])
+  @@index([departmentId])
   @@map("users")
 }
 
@@ -51,25 +83,55 @@ enum Role {
   AGENT
 }
 
-model Conversation {
-  id            String             @id @default(uuid())
-  companyId     String
-  customerPhone String
-  customerName  String?
-  status        ConversationStatus @default(OPEN)
-  lastMessageAt DateTime           @default(now())
-  unreadCount   Int                @default(0)
-  metadata      Json?
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+enum UserStatus {
+  ONLINE
+  BUSY
+  OFFLINE
+}
 
-  company     Company      @relation(fields: [companyId], references: [id])
-  messages    Message[]
-  assignments Assignment[]
+model Conversation {
+  id                     String             @id @default(uuid())
+  companyId              String
+  customerPhone          String
+  customerName           String?
+  status                 ConversationStatus @default(OPEN)
+  departmentId           String?
+  assignedUserId         String?
+  flowState              FlowState          @default(GREETING)
+  routedAt               DateTime?
+  assignedAt             DateTime?
+  timeoutAt              DateTime?
+  greetingSentAt         DateTime?
+  lastMessageAt          DateTime           @default(now())
+  unreadCount            Int                @default(0)
+  metadata               Json?
+  lastDepartmentId       String?
+  lastAttendantId        String?
+  lastAttendedAt         DateTime?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  company      Company      @relation(fields: [companyId], references: [id])
+  department   Department?  @relation(fields: [departmentId], references: [id])
+  assignedUser User?        @relation("AssignedConversations", fields: [assignedUserId], references: [id])
+  messages     Message[]
+  assignments  Assignment[]
+  notes        ConversationNote[]
 
   @@unique([companyId, customerPhone])
   @@index([companyId, status, lastMessageAt])
+  @@index([departmentId])
+  @@index([assignedUserId])
   @@map("conversations")
+}
+
+enum FlowState {
+  GREETING
+  DEPARTMENT_SELECTED
+  ASSIGNED
+  AWAITING_ROUTING_CONFIRMATION
+  TIMEOUT_REDIRECT
+  RESOLVED
 }
 
 enum ConversationStatus {
@@ -103,6 +165,7 @@ model Message {
   content           String        @db.Text
   mediaUrl          String?
   status            MessageStatus @default(PENDING)
+  isBot             Boolean       @default(false)
   sentById          String?
   sentAt            DateTime      @default(now())
   deliveredAt       DateTime?
@@ -153,6 +216,23 @@ model QuickReply {
 
   @@index([companyId])
   @@map("quick_replies")
+}
+
+model ConversationNote {
+  id             String       @id @default(uuid())
+  conversationId String
+  companyId      String
+  authorId       String
+  content        String       @db.Text
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  company        Company      @relation(fields: [companyId], references: [id])
+  author         User         @relation(fields: [authorId], references: [id])
+
+  @@index([conversationId])
+  @@map("conversation_notes")
 }
 
 model AuditLog {

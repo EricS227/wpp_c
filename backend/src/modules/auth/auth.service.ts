@@ -72,17 +72,26 @@ export class AuthService {
         name: true,
         role: true,
         companyId: true,
+        departmentId: true,
+        onlineStatus: true,
         isActive: true,
       },
     });
   }
 
-  private generateToken(user: { id: string; email: string; role: string; companyId: string }) {
+  private generateToken(user: {
+    id: string;
+    email: string;
+    role: string;
+    companyId: string;
+    departmentId?: string | null;
+  }) {
     const payload = {
       sub: user.id,
       email: user.email,
       role: user.role,
       companyId: user.companyId,
+      ...(user.departmentId && { departmentId: user.departmentId }),
     };
 
     return this.jwtService.sign(payload);

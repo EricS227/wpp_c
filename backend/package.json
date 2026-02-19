@@ -18,11 +18,17 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:routing": "ts-node prisma/seeds/test-routing.ts",
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:generate": "prisma generate",
     "prisma:seed": "ts-node prisma/seed.ts",
-    "prisma:studio": "prisma studio"
+    "prisma:seed:setup": "ts-node prisma/seeds/sim-estearina-setup.ts",
+    "prisma:seed:estearina": "ts-node prisma/seeds/seed-sim-estearina.ts",
+    "prisma:seed:clients": "ts-node prisma/seeds/create-test-clients.ts",
+    "prisma:reset:passwords": "ts-node prisma/seeds/reset-passwords.ts",
+    "prisma:studio": "prisma studio",
+    "simulate:routing": "ts-node scripts/simulate-routing.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
@@ -36,6 +42,7 @@
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/platform-socket.io": "^11.1.13",
+    "@nestjs/schedule": "^6.1.1",
     "@nestjs/throttler": "^6.5.0",
     "@nestjs/websockets": "^11.1.13",
     "@prisma/client": "^6.19.2",
@@ -60,6 +67,7 @@
     "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
+    "@types/multer": "^2.0.0",
     "@types/node": "^22.10.7",
     "@types/passport-jwt": "^4.0.1",
     "@types/supertest": "^6.0.2",

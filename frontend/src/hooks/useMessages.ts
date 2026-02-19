@@ -86,3 +86,60 @@ export function useSendMessage() {
     },
   });
 }
+
+export function useSendMedia() {
+  const queryClient = useQueryClient();
+  const addMessage = useChatStore((s) => s.addMessage);
+  const user = useAuthStore((s) => s.user);
+
+  return useMutation({
+    mutationFn: async (data: {
+      conversationId: string;
+      file: File;
+      caption?: string;
+    }) => {
+      const ext = data.file.name.split('.').pop()?.toLowerCase() || '';
+      const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+      const type = imageExts.includes(ext) ? MessageType.IMAGE : MessageType.DOCUMENT;
+
+      const optimisticMsg: Message = {
+        id: `optimistic-${Date.now()}`,
+        conversationId: data.conversationId,
+        direction: Direction.OUTBOUND,
+        type,
+        content: data.caption || data.file.name,
+        status: MessageStatus.PENDING,
+        sentAt: new Date().toISOString(),
+        sentBy: user ? { id: user.id, name: user.name } : undefined,
+      };
+      addMessage(data.conversationId, optimisticMsg);
+
+      const formData = new FormData();
+      formData.append('file', data.file);
+      formData.append('conversationId', data.conversationId);
+      if (data.caption) formData.append('caption', data.caption);
+
+      const res = await apiClient.post('/messages/send-media', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return { real: res.data as Message, optimisticId: optimisticMsg.id };
+    },
+    onSuccess: ({ real, optimisticId }) => {
+      const messages = useChatStore.getState().messages;
+      const convMessages = messages[real.conversationId] || [];
+      const updated = convMessages
+        .filter((m) => m.id !== optimisticId)
+        .concat(real);
+      useChatStore.getState().setMessages(real.conversationId, updated);
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    },
+    onError: (_error, variables) => {
+      const messages = useChatStore.getState().messages;
+      const convMessages = messages[variables.conversationId] || [];
+      const updated = convMessages.map((m) =>
+        m.id.startsWith('optimistic-') ? { ...m, status: MessageStatus.FAILED } : m,
+      );
+      useChatStore.getState().setMessages(variables.conversationId, updated);
+    },
+  });
+}

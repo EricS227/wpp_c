@@ -23,6 +23,8 @@ export interface ConversationMetrics {
   newConversationsLast7Days: number;
   newConversationsLast30Days: number;
   resolvedLast7Days: number;
+  newConversationsInPeriod: number;
+  resolvedInPeriod: number;
   avgFirstResponseTimeMs: number;
   avgFirstResponseTimeFormatted: string;
 }
@@ -35,33 +37,35 @@ export interface AgentMetric {
   totalMessagesSent: number;
 }
 
-export function useDashboardMetrics() {
+export type MetricsPeriod = '1d' | '7d' | '30d' | '90d';
+
+export function useDashboardMetrics(period: MetricsPeriod = '30d') {
   return useQuery<DashboardMetrics>({
-    queryKey: ['metrics', 'dashboard'],
+    queryKey: ['metrics', 'dashboard', period],
     queryFn: async () => {
-      const { data } = await apiClient.get('/metrics/dashboard');
+      const { data } = await apiClient.get('/metrics/dashboard', { params: { period } });
       return data;
     },
     refetchInterval: 30000,
   });
 }
 
-export function useConversationMetrics() {
+export function useConversationMetrics(period: MetricsPeriod = '30d') {
   return useQuery<ConversationMetrics>({
-    queryKey: ['metrics', 'conversations'],
+    queryKey: ['metrics', 'conversations', period],
     queryFn: async () => {
-      const { data } = await apiClient.get('/metrics/conversations');
+      const { data } = await apiClient.get('/metrics/conversations', { params: { period } });
       return data;
     },
     refetchInterval: 60000,
   });
 }
 
-export function useAgentMetrics() {
+export function useAgentMetrics(period: MetricsPeriod = '30d') {
   return useQuery<AgentMetric[]>({
-    queryKey: ['metrics', 'agents'],
+    queryKey: ['metrics', 'agents', period],
     queryFn: async () => {
-      const { data } = await apiClient.get('/metrics/agents');
+      const { data } = await apiClient.get('/metrics/agents', { params: { period } });
       return data;
     },
     refetchInterval: 30000,

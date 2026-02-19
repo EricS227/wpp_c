@@ -6,8 +6,8 @@ echo.
 
 cd /d "%~dp0"
 
-echo [1/3] Encerrando FRONTEND (porta 3000)...
-for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":3000" ^| findstr "LISTENING"') do (
+echo [1/3] Encerrando FRONTEND (porta 3100)...
+for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":3100" ^| findstr "LISTENING"') do (
   taskkill /PID %%a /F >nul 2>&1
 )
 echo    OK.

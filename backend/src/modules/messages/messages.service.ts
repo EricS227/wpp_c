@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
@@ -11,8 +12,16 @@ export class MessagesService {
   constructor(
     private prisma: PrismaService,
     private whatsappService: WhatsappService,
-    private websocketGateway: WebsocketGateway,
+    private moduleRef: ModuleRef,
   ) {}
+
+  private getWebsocketGateway(): WebsocketGateway | null {
+    try {
+      return this.moduleRef.get(WebsocketGateway, { strict: false });
+    } catch (error) {
+      return null;
+    }
+  }
 
   async sendMessage(
     userId: string,
@@ -88,11 +97,14 @@ export class MessagesService {
       });
 
       // Emit to WebSocket
-      this.websocketGateway.emitToConversation(
-        dto.conversationId,
-        'message-sent',
-        updatedMessage,
-      );
+      const gateway = this.getWebsocketGateway();
+      if (gateway) {
+        gateway.emitToConversation(
+          dto.conversationId,
+          'message-sent',
+          updatedMessage,
+        );
+      }
 
       return updatedMessage;
     } catch (error: any) {
@@ -109,6 +121,60 @@ export class MessagesService {
 
       throw error;
     }
+  }
+
+  /**
+   * Find or create a conversation by companyId and customerPhone (and optionally chatId).
+   * Does not create any message. Used by flow engine to decide greeting vs normal handling.
+   */
+  async findOrCreateConversation(
+    companyId: string,
+    customerPhone: string,
+    customerName?: string,
+    chatId?: string,
+    contactProfile?: {
+      pushname?: string;
+      name?: string;
+      isBusiness?: boolean;
+      profilePictureURL?: string;
+    },
+  ) {
+    let conversation = await this.prisma.conversation.findUnique({
+      where: { companyId_customerPhone: { companyId, customerPhone } },
+    });
+    if (!conversation && chatId && chatId !== customerPhone) {
+      conversation = await this.prisma.conversation.findUnique({
+        where: { companyId_customerPhone: { companyId, customerPhone: chatId } },
+      });
+      if (conversation) {
+        conversation = await this.prisma.conversation.update({
+          where: { id: conversation.id },
+          data: {
+            customerPhone,
+            metadata: {
+              ...(conversation.metadata as any),
+              chatId,
+              ...(contactProfile || {}),
+            },
+          },
+        });
+      }
+    }
+    if (!conversation) {
+      conversation = await this.prisma.conversation.create({
+        data: {
+          companyId,
+          customerPhone,
+          customerName: customerName || null,
+          status: 'OPEN',
+          metadata: {
+            ...(chatId && { chatId }),
+            ...(contactProfile || {}),
+          },
+        },
+      });
+    }
+    return conversation;
   }
 
   async handleIncomingMessage(
@@ -232,11 +298,21 @@ export class MessagesService {
       data: conversationUpdate,
     });
 
-    // Emit to WebSocket
-    this.websocketGateway.emitToCompany(companyId, 'message-received', {
-      message,
-      conversationId: conversation.id,
-    });
+    // Emit to WebSocket: by department if routed, else company
+    const gateway = this.getWebsocketGateway();
+    if (gateway) {
+      if (conversation.departmentId) {
+        gateway.emitToDepartment(conversation.departmentId, 'message-received', {
+          message,
+          conversationId: conversation.id,
+        });
+      } else {
+        gateway.emitToCompany(companyId, 'message-received', {
+          message,
+          conversationId: conversation.id,
+        });
+      }
+    }
 
     return message;
   }
@@ -270,6 +346,86 @@ export class MessagesService {
       }
     }
     return null;
+  }
+
+  async sendMedia(
+    userId: string,
+    companyId: string,
+    conversationId: string,
+    fileBuffer: Buffer,
+    filename: string,
+    agentName?: string,
+    caption?: string,
+  ) {
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id: conversationId },
+      include: { company: true },
+    });
+    if (!conversation) throw new Error('Conversa nao encontrada');
+
+    const ext = filename.split('.').pop()?.toLowerCase() || '';
+    const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    const type = imageExts.includes(ext) ? 'IMAGE' : 'DOCUMENT';
+
+    const messageContent = caption || filename;
+
+    const message = await this.prisma.message.create({
+      data: {
+        companyId,
+        conversationId,
+        direction: 'OUTBOUND',
+        type,
+        content: messageContent,
+        status: 'PENDING',
+        sentById: userId,
+      },
+      include: { sentBy: { select: { id: true, name: true } } },
+    });
+
+    const base64Data = fileBuffer.toString('base64');
+    const meta = conversation.metadata as any;
+    const sendTo = meta?.chatId || conversation.customerPhone;
+
+    try {
+      const waResponse = await this.whatsappService.sendMediaMessage(
+        conversation.company.whatsappAccessToken,
+        conversation.company.whatsappPhoneNumberId,
+        sendTo,
+        base64Data,
+        filename,
+        agentName ? `*${agentName}*: ${caption || ''}` : caption,
+      );
+
+      const waMessageId = waResponse.messages?.[0]?.id || null;
+
+      const updatedMessage = await this.prisma.message.update({
+        where: { id: message.id },
+        data: {
+          ...(waMessageId && { whatsappMessageId: waMessageId }),
+          status: 'SENT',
+        },
+        include: { sentBy: { select: { id: true, name: true } } },
+      });
+
+      await this.prisma.conversation.update({
+        where: { id: conversationId },
+        data: { lastMessageAt: new Date() },
+      });
+
+      const gateway = this.getWebsocketGateway();
+      if (gateway) {
+        gateway.emitToConversation(conversationId, 'message-sent', updatedMessage);
+      }
+
+      return updatedMessage;
+    } catch (error: any) {
+      this.logger.error(`Failed to send media: ${error.message}`);
+      await this.prisma.message.update({
+        where: { id: message.id },
+        data: { status: 'FAILED' },
+      });
+      throw error;
+    }
   }
 
   async search(companyId: string, query: string, conversationId?: string) {
@@ -311,11 +467,14 @@ export class MessagesService {
       data: updateData,
     });
 
-    this.websocketGateway.emitToConversation(
-      message.conversationId,
-      'message-status-updated',
-      { messageId: message.id, status },
-    );
+    const gateway = this.getWebsocketGateway();
+    if (gateway) {
+      gateway.emitToConversation(
+        message.conversationId,
+        'message-status-updated',
+        { messageId: message.id, status },
+      );
+    }
 
     return updated;
   }

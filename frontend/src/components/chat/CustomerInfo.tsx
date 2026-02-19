@@ -16,11 +16,15 @@ import {
   Archive,
   Clock,
   Pencil,
+  ArrowRightLeft,
+  ChevronDown,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import apiClient from '@/lib/api-client';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useChatStore } from '@/stores/chatStore';
+import { ConversationNotes } from './ConversationNotes';
 
 interface CustomerInfoProps {
   conversation: Conversation;
@@ -43,11 +47,24 @@ const statusColors: Record<ConversationStatus, string> = {
 export function CustomerInfo({ conversation }: CustomerInfoProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const selectConversation = useChatStore((s) => s.selectConversation);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState(
     conversation.customerName || '',
   );
+  const [showTransfer, setShowTransfer] = useState(false);
+  const [isResolving, setIsResolving] = useState(false);
+  const [isTransferring, setIsTransferring] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch departments for transfer
+  const { data: departments = [] } = useQuery<any[]>({
+    queryKey: ['departments'],
+    queryFn: async () => {
+      const res = await apiClient.get('/departments');
+      return res.data;
+    },
+  });
 
   const assignedUser = conversation.assignments?.[0]?.user;
   const displayName = conversation.customerName || 'Sem nome';
@@ -83,6 +100,41 @@ export function CustomerInfo({ conversation }: CustomerInfoProps) {
       toast.success('Conversa desatribuida');
     } catch {
       toast.error('Erro ao desatribuir conversa');
+    }
+  };
+
+  const handleResolve = async () => {
+    if (!confirm('Finalizar atendimento? O cliente receberá uma mensagem de encerramento e o bot reiniciará na próxima mensagem.')) return;
+    setIsResolving(true);
+    try {
+      await apiClient.post(`/conversations/${conversation.id}/resolve`, {
+        sendMessage: true,
+      });
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      selectConversation(null);
+      toast.success('Atendimento finalizado! Bot reiniciará na próxima mensagem do cliente.');
+    } catch {
+      toast.error('Erro ao finalizar atendimento');
+    } finally {
+      setIsResolving(false);
+    }
+  };
+
+  const handleTransfer = async (departmentId: string, departmentName: string) => {
+    if (!confirm(`Transferir conversa para o setor "${departmentName}"?`)) return;
+    setIsTransferring(true);
+    try {
+      await apiClient.post(`/conversations/${conversation.id}/transfer`, {
+        departmentId,
+      });
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      setShowTransfer(false);
+      selectConversation(null);
+      toast.success(`Conversa transferida para ${departmentName}`);
+    } catch {
+      toast.error('Erro ao transferir conversa');
+    } finally {
+      setIsTransferring(false);
     }
   };
 
@@ -122,7 +174,7 @@ export function CustomerInfo({ conversation }: CustomerInfoProps) {
   };
 
   return (
-    <div className="flex w-72 flex-col border-l bg-white">
+    <div className="flex w-72 flex-col border-l bg-white overflow-y-auto">
       {/* Customer Header */}
       <div className="flex flex-col items-center p-6">
         <Avatar className="h-16 w-16 mb-3">
@@ -168,6 +220,11 @@ export function CustomerInfo({ conversation }: CustomerInfoProps) {
         <Badge className={`mt-2 ${statusColors[conversation.status as ConversationStatus]}`}>
           {statusLabels[conversation.status as ConversationStatus]}
         </Badge>
+        {conversation.department && (
+          <Badge variant="outline" className="mt-1 text-xs">
+            {conversation.department.name}
+          </Badge>
+        )}
       </div>
 
       <Separator />
@@ -208,22 +265,76 @@ export function CustomerInfo({ conversation }: CustomerInfoProps) {
 
       <Separator />
 
+      {/* Transfer to Department */}
+      <div className="p-4">
+        <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">
+          Transferir Setor
+        </h4>
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full text-xs justify-between"
+          onClick={() => setShowTransfer(!showTransfer)}
+          disabled={isTransferring}
+          id="transfer-department-btn"
+        >
+          <span className="flex items-center gap-1">
+            <ArrowRightLeft className="h-3 w-3" />
+            Transferir para setor
+          </span>
+          <ChevronDown className={`h-3 w-3 transition-transform ${showTransfer ? 'rotate-180' : ''}`} />
+        </Button>
+        {showTransfer && (
+          <div className="mt-2 border rounded-md overflow-hidden shadow-sm">
+            {departments.length === 0 ? (
+              <p className="text-xs text-muted-foreground p-2">Nenhum setor disponível</p>
+            ) : (
+              departments
+                .filter((d: any) => d.id !== conversation.departmentId && d.isActive !== false)
+                .map((dept: any) => (
+                  <button
+                    key={dept.id}
+                    className="w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors border-b last:border-b-0 flex items-center gap-2"
+                    onClick={() => handleTransfer(dept.id, dept.name)}
+                    disabled={isTransferring}
+                  >
+                    {dept.color && (
+                      <span
+                        className="inline-block w-2 h-2 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: dept.color }}
+                      />
+                    )}
+                    {dept.name}
+                  </button>
+                ))
+            )}
+          </div>
+        )}
+      </div>
+
+      <Separator />
+
       {/* Actions */}
       <div className="p-4 space-y-2">
         <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">
           Acoes
         </h4>
+
+        {/* Finalizar Atendimento — main action */}
         {conversation.status !== ConversationStatus.RESOLVED && (
           <Button
-            variant="outline"
+            variant="default"
             size="sm"
-            className="w-full text-xs justify-start"
-            onClick={() => handleUpdateStatus(ConversationStatus.RESOLVED)}
+            className="w-full text-xs justify-start bg-green-600 hover:bg-green-700 text-white"
+            onClick={handleResolve}
+            disabled={isResolving}
+            id="resolve-conversation-btn"
           >
-            <CheckCircle className="h-3 w-3 mr-2 text-green-500" />
-            Marcar como resolvida
+            <CheckCircle className="h-3 w-3 mr-2" />
+            {isResolving ? 'Finalizando...' : 'Finalizar Atendimento'}
           </Button>
         )}
+
         {conversation.status === ConversationStatus.RESOLVED && (
           <Button
             variant="outline"
@@ -235,6 +346,7 @@ export function CustomerInfo({ conversation }: CustomerInfoProps) {
             Reabrir conversa
           </Button>
         )}
+
         {conversation.status !== ConversationStatus.ARCHIVED && (
           <Button
             variant="outline"
@@ -273,8 +385,21 @@ export function CustomerInfo({ conversation }: CustomerInfoProps) {
               })}
             </span>
           </div>
+          {conversation.flowState && (
+            <div className="flex justify-between">
+              <span>Estado do bot</span>
+              <span className="font-medium text-foreground text-right">
+                {conversation.flowState}
+              </span>
+            </div>
+          )}
         </div>
       </div>
+
+      <Separator />
+
+      {/* Internal Notes */}
+      <ConversationNotes conversationId={conversation.id} />
     </div>
   );
 }

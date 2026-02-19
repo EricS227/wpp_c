@@ -13,7 +13,7 @@ export class WhatsappService {
 
   constructor(private configService: ConfigService) {
     this.provider = this.configService.get<string>('WHATSAPP_PROVIDER') || 'META';
-    this.wahaApiUrl = this.configService.get<string>('WAHA_API_URL') || 'http://localhost:3001';
+    this.wahaApiUrl = this.configService.get<string>('WAHA_API_URL') || 'http://192.168.10.156:3101';
     this.wahaApiKey = this.configService.get<string>('WAHA_API_KEY') || '';
     this.wahaSession = this.configService.get<string>('WAHA_SESSION') || 'default';
     this.logger.log(`WhatsApp provider: ${this.provider}`);
@@ -127,12 +127,82 @@ export class WhatsappService {
     }
   }
 
+  async sendMediaMessage(
+    _accessToken: string,
+    _phoneNumberId: string,
+    to: string,
+    base64Data: string,
+    filename: string,
+    caption?: string,
+  ) {
+    if (this.isWaha()) {
+      return this.wahaSendFile(to, base64Data, filename, caption);
+    }
+    throw new Error('Media sending is only supported with WAHA provider');
+  }
+
   // ===== WAHA Methods =====
 
   private wahaHeaders() {
     return this.wahaApiKey
       ? { 'X-Api-Key': this.wahaApiKey, 'Content-Type': 'application/json' }
       : { 'Content-Type': 'application/json' };
+  }
+
+  private getMimetype(filename: string): string {
+    const ext = filename.split('.').pop()?.toLowerCase() || '';
+    const map: Record<string, string> = {
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      png: 'image/png',
+      gif: 'image/gif',
+      webp: 'image/webp',
+      pdf: 'application/pdf',
+      doc: 'application/msword',
+      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      xls: 'application/vnd.ms-excel',
+      xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      mp3: 'audio/mpeg',
+      ogg: 'audio/ogg',
+      mp4: 'video/mp4',
+    };
+    return map[ext] || 'application/octet-stream';
+  }
+
+  private async wahaSendFile(
+    to: string,
+    base64Data: string,
+    filename: string,
+    caption?: string,
+  ) {
+    const chatId = to.includes('@') ? to : `${to}@c.us`;
+    const mimetype = this.getMimetype(filename);
+    try {
+      const response = await axios.post(
+        `${this.wahaApiUrl}/api/sendFile`,
+        {
+          session: this.wahaSession,
+          chatId,
+          file: { mimetype, filename, data: base64Data },
+          caption: caption || '',
+        },
+        { headers: this.wahaHeaders() },
+      );
+      const data = response.data;
+      const rawId = data?.id;
+      const messageId =
+        typeof rawId === 'string'
+          ? rawId
+          : rawId?._serialized || rawId?.id || data?.key?.id || `waha_${Date.now()}`;
+      return { messages: [{ id: messageId }] };
+    } catch (error: any) {
+      this.logger.error(
+        `[WAHA] Failed to send file to ${to}`,
+        error.response?.status,
+        error.response?.data || error.message,
+      );
+      throw error;
+    }
   }
 
   private async wahaSendText(to: string, text: string) {
