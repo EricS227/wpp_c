@@ -1,26 +1,26 @@
 # Como rodar o WPPConnector
 
-## Parar a aplicação
+## Parar a aplicacao
 
-- **`stop.bat`** – Encerra só frontend e backend (portas 3000 e 4000). Docker continua rodando.
+- **`stop.bat`** – Encerra so frontend e backend (portas 3100 e 4000). Docker continua rodando.
 - **`stop-all.bat`** – Encerra frontend, backend e **para os containers Docker** (Postgres, Redis, WAHA).
 
 ---
 
-## Opção 1: Script único (Windows)
+## Opcao 1: Script unico (Windows)
 
-Dê dois cliques em **`start.bat`** na raiz do projeto. Ele vai:
+De dois cliques em **`start.bat`** na raiz do projeto. Ele vai:
 1. Verificar o Docker
 2. Abrir uma janela com o **backend** (porta 4000)
-3. Abrir outra janela com o **frontend** (porta 3000)
+3. Abrir outra janela com o **frontend** (porta 3100)
 
-Depois abra no navegador: **http://localhost:3000**
+Depois abra no navegador: **http://192.168.10.156:3100**
 
 ---
 
-## Opção 2: Passo a passo manual
+## Opcao 2: Passo a passo manual
 
-### 1. Subir o Docker (banco e serviços)
+### 1. Subir o Docker (banco e servicos)
 
 Na raiz do projeto:
 
@@ -28,7 +28,7 @@ Na raiz do projeto:
 docker compose up -d
 ```
 
-Isso sobe: Postgres (5434), Redis (6380), WAHA (3001).
+Isso sobe: Postgres (5434), Redis (6380), WAHA (3101).
 
 ### 2. Backend
 
@@ -38,22 +38,22 @@ npm install
 npm run start:dev
 ```
 
-Deixe rodando. O backend fica em **http://localhost:4000**.
+Deixe rodando. O backend fica em **http://192.168.10.156:4000**.
 
 ### 3. Frontend (em outro terminal)
 
 ```bash
 cd frontend
 npm install
-npm run dev
+npm run dev -- -p 3100
 ```
 
-O frontend fica em **http://localhost:3000**. Acesse essa URL para usar o sistema.
+O frontend fica em **http://192.168.10.156:3100**. Acesse essa URL para usar o sistema.
 
 ---
 
 ## Se algo falhar
 
 - **"Cannot find module"** → Rode `npm install` dentro de `backend` e de `frontend`.
-- **Backend não conecta no banco** → Confira se o Docker está rodando (`docker compose ps`) e se o arquivo `backend/.env` existe com `DATABASE_URL=postgresql://whatsapp:dev_password@localhost:5434/whatsapp_db`.
-- **Frontend não abre** → Confira se a porta 3000 está livre e se rodou `npm run dev` dentro da pasta `frontend`.
+- **Backend nao conecta no banco** → Confira se o Docker esta rodando (`docker compose ps`) e se o arquivo `.env` existe com `DATABASE_URL=postgresql://whatsapp:dev_password@192.168.10.156:5434/whatsapp_db`.
+- **Frontend nao abre** → Confira se a porta 3100 esta livre e se rodou `npm run dev -- -p 3100` dentro da pasta `frontend`.

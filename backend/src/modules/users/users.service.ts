@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { UserStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -8,6 +9,20 @@ import { UpdateUserDto } from './dto/update-user.dto';
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
+  async setMyStatus(userId: string, status: UserStatus) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { onlineStatus: status, lastHeartbeatAt: new Date() },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        onlineStatus: true,
+      },
+    });
+  }
+
   async findAll(companyId: string) {
     return this.prisma.user.findMany({
       where: { companyId },
@@ -16,6 +31,8 @@ export class UsersService {
         email: true,
         name: true,
         role: true,
+        departmentId: true,
+        onlineStatus: true,
         isActive: true,
         createdAt: true,
       },

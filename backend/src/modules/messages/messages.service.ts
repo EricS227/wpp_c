@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
@@ -11,8 +12,16 @@ export class MessagesService {
   constructor(
     private prisma: PrismaService,
     private whatsappService: WhatsappService,
-    private websocketGateway: WebsocketGateway,
+    private moduleRef: ModuleRef,
   ) {}
+
+  private getWebsocketGateway(): WebsocketGateway | null {
+    try {
+      return this.moduleRef.get(WebsocketGateway, { strict: false });
+    } catch (error) {
+      return null;
+    }
+  }
 
   async sendMessage(
     userId: string,
@@ -88,11 +97,14 @@ export class MessagesService {
       });
 
       // Emit to WebSocket
-      this.websocketGateway.emitToConversation(
-        dto.conversationId,
-        'message-sent',
-        updatedMessage,
-      );
+      const gateway = this.getWebsocketGateway();
+      if (gateway) {
+        gateway.emitToConversation(
+          dto.conversationId,
+          'message-sent',
+          updatedMessage,
+        );
+      }
 
       return updatedMessage;
     } catch (error: any) {
@@ -109,6 +121,60 @@ export class MessagesService {
 
       throw error;
     }
+  }
+
+  /**
+   * Find or create a conversation by companyId and customerPhone (and optionally chatId).
+   * Does not create any message. Used by flow engine to decide greeting vs normal handling.
+   */
+  async findOrCreateConversation(
+    companyId: string,
+    customerPhone: string,
+    customerName?: string,
+    chatId?: string,
+    contactProfile?: {
+      pushname?: string;
+      name?: string;
+      isBusiness?: boolean;
+      profilePictureURL?: string;
+    },
+  ) {
+    let conversation = await this.prisma.conversation.findUnique({
+      where: { companyId_customerPhone: { companyId, customerPhone } },
+    });
+    if (!conversation && chatId && chatId !== customerPhone) {
+      conversation = await this.prisma.conversation.findUnique({
+        where: { companyId_customerPhone: { companyId, customerPhone: chatId } },
+      });
+      if (conversation) {
+        conversation = await this.prisma.conversation.update({
+          where: { id: conversation.id },
+          data: {
+            customerPhone,
+            metadata: {
+              ...(conversation.metadata as any),
+              chatId,
+              ...(contactProfile || {}),
+            },
+          },
+        });
+      }
+    }
+    if (!conversation) {
+      conversation = await this.prisma.conversation.create({
+        data: {
+          companyId,
+          customerPhone,
+          customerName: customerName || null,
+          status: 'OPEN',
+          metadata: {
+            ...(chatId && { chatId }),
+            ...(contactProfile || {}),
+          },
+        },
+      });
+    }
+    return conversation;
   }
 
   async handleIncomingMessage(
@@ -232,11 +298,21 @@ export class MessagesService {
       data: conversationUpdate,
     });
 
-    // Emit to WebSocket
-    this.websocketGateway.emitToCompany(companyId, 'message-received', {
-      message,
-      conversationId: conversation.id,
-    });
+    // Emit to WebSocket: by department if routed, else company
+    const gateway = this.getWebsocketGateway();
+    if (gateway) {
+      if (conversation.departmentId) {
+        gateway.emitToDepartment(conversation.departmentId, 'message-received', {
+          message,
+          conversationId: conversation.id,
+        });
+      } else {
+        gateway.emitToCompany(companyId, 'message-received', {
+          message,
+          conversationId: conversation.id,
+        });
+      }
+    }
 
     return message;
   }
@@ -311,11 +387,14 @@ export class MessagesService {
       data: updateData,
     });
 
-    this.websocketGateway.emitToConversation(
-      message.conversationId,
-      'message-status-updated',
-      { messageId: message.id, status },
-    );
+    const gateway = this.getWebsocketGateway();
+    if (gateway) {
+      gateway.emitToConversation(
+        message.conversationId,
+        'message-status-updated',
+        { messageId: message.id, status },
+      );
+    }
 
     return updated;
   }

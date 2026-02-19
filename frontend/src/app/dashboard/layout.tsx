@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useSocket } from '@/hooks/useSocket';
 import { Header } from '@/components/layout/Header';
 import { Sidebar } from '@/components/layout/Sidebar';
+import { NotificationContainer } from '@/components/NotificationContainer';
 
 export default function DashboardLayout({
   children,
@@ -42,6 +43,7 @@ export default function DashboardLayout({
         <Sidebar />
         <main className="flex-1 overflow-auto">{children}</main>
       </div>
+      <NotificationContainer />
     </div>
   );
 }

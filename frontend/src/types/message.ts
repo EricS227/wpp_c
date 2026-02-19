@@ -28,6 +28,7 @@ export interface Message {
   content: string;
   mediaUrl?: string;
   status: MessageStatus;
+  isBot?: boolean;
   sentById?: string;
   sentBy?: {
     id: string;

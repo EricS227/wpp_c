@@ -48,7 +48,14 @@
       "Bash(timeout:*)",
       "Bash(ping:*)",
       "Bash(python:*)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(ss:*)",
+      "Bash(docker-compose:*)",
+      "Bash(sudo tee:*)",
+      "Bash(sysctl:*)",
+      "Bash(journalctl:*)",
+      "Bash(kill:*)",
+      "Bash(top:*)"
     ]
   }
 }

@@ -138,6 +138,7 @@ export function ChatWindow() {
             <MessageBubble
               key={`${msg.id}-${index}`}
               message={msg}
+              departmentName={conversation.department?.name}
             />
           ))
         )}

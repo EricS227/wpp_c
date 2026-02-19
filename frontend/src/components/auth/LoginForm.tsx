@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import apiClient from '@/lib/api-client';
+import { useAuthStore } from '@/stores/authStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -16,10 +18,13 @@ import { MessageSquare } from 'lucide-react';
 export function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const { login } = useAuth();
+  const setAuth = useAuthStore((s) => s.setAuth);
+  const token = useAuthStore((s) => s.token);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -28,7 +33,21 @@ export function LoginForm() {
     setLoading(true);
 
     try {
-      await login(email, password);
+      const data = await login(email, password);
+
+      // If the agent provided a display name at login, persist it
+      if (name && name.trim()) {
+        try {
+          await apiClient.patch('/users/me', { name: name.trim() });
+          // Refresh local user object
+          const me = await apiClient.get('/auth/me');
+          setAuth(me.data, token || data.token);
+        } catch (e) {
+          // ignore patch errors (non-blocking)
+          console.warn('Failed to update user name', e);
+        }
+      }
+
       router.push('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'Erro ao fazer login');
@@ -50,6 +69,16 @@ export function LoginForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Input
+              type="text"
+              placeholder="Nome (como aparecerá no chat)"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoComplete="name"
+            />
+          </div>
+
           <div>
             <Input
               type="email"

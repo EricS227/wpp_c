@@ -5,6 +5,7 @@ import { useConversations } from '@/hooks/useConversations';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { DepartmentBadge } from '@/components/DepartmentBadge';
 import { cn, cleanPhone } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -114,18 +115,22 @@ export function ConversationList() {
                 </Avatar>
 
                 <div className="flex-1 overflow-hidden">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-1">
                     <span className="text-sm font-medium truncate">
                       {conv.customerName || cleanPhone(conv.customerPhone)}
                     </span>
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
                       {formatDistanceToNow(new Date(conv.lastMessageAt), {
                         addSuffix: true,
                         locale: ptBR,
                       })}
                     </span>
                   </div>
-
+                  {conv.department && (
+                    <div className="mt-0.5">
+                      <DepartmentBadge department={conv.department} />
+                    </div>
+                  )}
                   <div className="flex items-center justify-between mt-1">
                     <p className="text-xs text-muted-foreground truncate">
                       {lastMessage?.content || 'Sem mensagens'}

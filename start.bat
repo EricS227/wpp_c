@@ -23,14 +23,14 @@ echo    Aguardando backend subir (15 segundos)...
 timeout /t 15 /nobreak >nul
 echo.
 
-echo [3/3] Iniciando FRONTEND na porta 3000...
-start "WPPConnector Frontend" cmd /k "cd /d "%~dp0frontend" && npm run dev"
+echo [3/3] Iniciando FRONTEND na porta 3100...
+start "WPPConnector Frontend" cmd /k "cd /d "%~dp0frontend" && npm run dev -- -p 3100"
 echo.
 echo ========================================
 echo   Pronto! Abra no navegador:
-echo   http://localhost:3000
+echo   http://192.168.10.156:3100
 echo ========================================
 echo.
-echo Backend: http://localhost:4000/api
+echo Backend: http://192.168.10.156:4000/api
 echo Feche as janelas do backend e frontend para parar.
 pause

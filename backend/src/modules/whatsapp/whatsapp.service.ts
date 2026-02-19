@@ -13,7 +13,7 @@ export class WhatsappService {
 
   constructor(private configService: ConfigService) {
     this.provider = this.configService.get<string>('WHATSAPP_PROVIDER') || 'META';
-    this.wahaApiUrl = this.configService.get<string>('WAHA_API_URL') || 'http://localhost:3001';
+    this.wahaApiUrl = this.configService.get<string>('WAHA_API_URL') || 'http://192.168.10.156:3101';
     this.wahaApiKey = this.configService.get<string>('WAHA_API_KEY') || '';
     this.wahaSession = this.configService.get<string>('WAHA_SESSION') || 'default';
     this.logger.log(`WhatsApp provider: ${this.provider}`);

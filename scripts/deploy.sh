@@ -28,7 +28,7 @@ echo "[5/5] Waiting for services..."
 sleep 10
 
 # Health check
-HEALTH=$(curl -s http://localhost:4000/api/health 2>/dev/null || echo '{"status":"error"}')
+HEALTH=$(curl -s http://192.168.10.156:4000/api/health 2>/dev/null || echo '{"status":"error"}')
 echo "Health check: $HEALTH"
 
 echo ""

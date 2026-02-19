@@ -3,12 +3,19 @@ import { WhatsappService } from './whatsapp.service';
 import { WebhookController } from './webhook.controller';
 import { WahaWebhookController } from './waha-webhook.controller';
 import { WahaPollingService } from './waha-polling.service';
+import { FlowEngineService } from './flow-engine.service';
 import { MessagesModule } from '../messages/messages.module';
+import { DepartmentsModule } from '../departments/departments.module';
+import { ConversationsModule } from '../conversations/conversations.module';
 
 @Module({
-  imports: [forwardRef(() => MessagesModule)],
+  imports: [
+    forwardRef(() => MessagesModule),
+    forwardRef(() => DepartmentsModule),
+    forwardRef(() => ConversationsModule),
+  ],
   controllers: [WebhookController, WahaWebhookController],
-  providers: [WhatsappService, WahaPollingService],
-  exports: [WhatsappService],
+  providers: [WhatsappService, WahaPollingService, FlowEngineService],
+  exports: [WhatsappService, FlowEngineService],
 })
 export class WhatsappModule {}
