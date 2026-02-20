@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Send, Paperclip, X, FileText, Image } from 'lucide-react';
+import { Send, Paperclip, X, FileText, Image, Mic } from 'lucide-react';
 import { useSendMessage, useSendMedia } from '@/hooks/useMessages';
 import { useSocket } from '@/hooks/useSocket';
 import { QuickRepliesPanel } from './QuickRepliesPanel';
@@ -17,6 +17,17 @@ const ALLOWED_TYPES = [
   'application/pdf',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/plain',
+  'text/csv',
+  'text/markdown',
+  'audio/mpeg',
+  'audio/ogg',
+  'audio/wav',
+  'audio/webm',
 ];
 const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
 
@@ -24,6 +35,7 @@ export function MessageInput({ conversationId }: MessageInputProps) {
   const [content, setContent] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sendMessage = useSendMessage();
@@ -49,7 +61,7 @@ export function MessageInput({ conversationId }: MessageInputProps) {
     if (!file) return;
 
     if (!ALLOWED_TYPES.includes(file.type)) {
-      toast.error('Tipo nao permitido. Use JPG, PNG, PDF ou DOCX.');
+      toast.error('Tipo nao permitido. Use formatos de imagem, áudio, PDF, Office ou Texto.');
       return;
     }
     if (file.size > MAX_SIZE) {
@@ -126,8 +138,53 @@ export function MessageInput({ conversationId }: MessageInputProps) {
     }
   }, [content]);
 
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        toast.error('Tipo nao permitido. Use formatos de imagem, áudio, PDF, Office ou Texto.');
+        return;
+      }
+      if (file.size > MAX_SIZE) {
+        toast.error('Arquivo muito grande. Limite: 10 MB.');
+        return;
+      }
+      setSelectedFile(file);
+      if (file.type.startsWith('image/')) {
+        setFilePreview(URL.createObjectURL(file));
+      } else {
+        setFilePreview(null);
+      }
+    }
+  };
+
   return (
-    <div className="border-t bg-white">
+    <div
+      className={`border-t bg-white relative ${isDragging ? 'bg-green-50' : ''}`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {isDragging && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-green-100/90 border-2 border-dashed border-green-500 rounded-t-lg backdrop-blur-sm">
+          <p className="text-green-800 font-semibold text-lg flex items-center gap-2">
+            <Paperclip className="h-6 w-6" /> Solte o arquivo aqui para enviar
+          </p>
+        </div>
+      )}
       {/* File preview bar */}
       {selectedFile && (
         <div className="flex items-center gap-3 px-4 py-2 bg-green-50 border-b">
@@ -159,7 +216,7 @@ export function MessageInput({ conversationId }: MessageInputProps) {
         <input
           ref={fileInputRef}
           type="file"
-          accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx"
+          accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.md,.mp3,.ogg,.wav,.webm"
           className="hidden"
           onChange={handleFileSelect}
         />
@@ -171,6 +228,8 @@ export function MessageInput({ conversationId }: MessageInputProps) {
         >
           {selectedFile?.type.startsWith('image/') ? (
             <Image className="h-4 w-4 text-green-600" />
+          ) : selectedFile?.type.startsWith('audio/') ? (
+            <Mic className="h-4 w-4 text-green-600" />
           ) : (
             <Paperclip className="h-4 w-4 text-gray-500" />
           )}
