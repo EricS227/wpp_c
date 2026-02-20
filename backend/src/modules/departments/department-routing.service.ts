@@ -423,6 +423,7 @@ export class DepartmentRoutingService {
         where: { id: conversationId },
         data: {
           flowState: 'GREETING',
+          greetingSentAt: null, // resetar para bot reenviar saudação na próxima mensagem
           departmentId: null,
           assignedUserId: null,
           timeoutAt: null,
