@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { connectSocket, disconnectSocket, getSocket } from '@/lib/socket';
@@ -19,6 +19,7 @@ export function useSocket() {
   const selectedConversationId = useChatStore((s) => s.selectedConversationId);
   const addNotification = useNotificationStore((s) => s.addNotification);
   const socketRef = useRef<SocketInstance | null>(null);
+  const [socketInstance, setSocketInstance] = useState<SocketInstance | null>(null);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -26,6 +27,7 @@ export function useSocket() {
 
     const socket = connectSocket(token);
     socketRef.current = socket;
+    setSocketInstance(socket);
 
     socket.on('connect', () => {
       socket.emit('agent-online');
@@ -166,7 +168,7 @@ export function useSocket() {
   };
 
   return {
-    socket: socketRef.current,
+    socket: socketInstance,
     joinConversation,
     leaveConversation,
     emitTypingStart,
