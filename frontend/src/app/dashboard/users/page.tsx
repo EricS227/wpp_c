@@ -163,6 +163,7 @@ export default function UsersPage() {
               <TableRow>
                 <TableHead>Nome</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Departamento</TableHead>
                 <TableHead>Perfil</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Acoes</TableHead>
@@ -173,6 +174,7 @@ export default function UsersPage() {
                 <TableRow key={user.id} className={!user.isActive ? 'opacity-50' : ''}>
                   <TableCell className="font-medium">{user.name}</TableCell>
                   <TableCell>{user.email}</TableCell>
+                  <TableCell>{user.department?.name || <span className="text-muted-foreground text-xs">—</span>}</TableCell>
                   <TableCell>
                     <Badge variant={user.role === Role.ADMIN ? 'default' : 'secondary'}>
                       {user.role === Role.ADMIN ? 'Admin' : 'Atendente'}
@@ -211,7 +213,7 @@ export default function UsersPage() {
               ))}
               {(!users || users.length === 0) && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                     Nenhum usuario encontrado
                   </TableCell>
                 </TableRow>

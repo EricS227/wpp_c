@@ -12,6 +12,7 @@ export interface User {
   role: Role;
   companyId: string;
   departmentId?: string | null;
+  department?: { name: string } | null;
   onlineStatus?: UserStatus;
   isActive: boolean;
 }

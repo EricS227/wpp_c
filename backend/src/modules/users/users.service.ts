@@ -32,6 +32,7 @@ export class UsersService {
         name: true,
         role: true,
         departmentId: true,
+        department: { select: { name: true } },
         onlineStatus: true,
         isActive: true,
         createdAt: true,
