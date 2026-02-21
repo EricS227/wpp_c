@@ -129,6 +129,7 @@ describe('ConversationRoutingService', () => {
 
   describe('recordAttendance', () => {
     it('deve registrar dados do atendimento', async () => {
+      mockPrisma.conversation.findUnique = jest.fn().mockResolvedValue(mockConversation);
       mockPrisma.conversation.update = jest.fn().mockResolvedValue({
         ...mockConversation,
         lastDepartmentId: 'dept-456',
