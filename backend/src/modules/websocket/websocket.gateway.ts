@@ -10,6 +10,7 @@ import {
 import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
+import { PrismaService } from '../../prisma/prisma.service';
 
 function getCorsOrigins(): string | string[] {
   const frontendUrl = process.env.FRONTEND_URL || 'http://192.168.10.156:3100';
@@ -34,14 +35,16 @@ function getCorsOrigins(): string | string[] {
   maxHttpBufferSize: 1e6,
 })
 export class WebsocketGateway
-  implements OnGatewayConnection, OnGatewayDisconnect
-{
+  implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
   private readonly logger = new Logger(WebsocketGateway.name);
 
-  constructor(private jwtService: JwtService) {}
+  constructor(
+    private jwtService: JwtService,
+    private prisma: PrismaService,
+  ) { }
 
   async handleConnection(client: Socket) {
     try {
@@ -61,6 +64,13 @@ export class WebsocketGateway
       client.data.userId = payload.sub;
       client.data.companyId = payload.companyId;
       client.data.departmentId = payload.departmentId ?? null;
+
+      // Fetch user name for typing indicator
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { name: true },
+      });
+      client.data.userName = user?.name || 'Atendente';
 
       client.join(`company:${payload.companyId}`);
       if (payload.departmentId) {
@@ -107,6 +117,7 @@ export class WebsocketGateway
   ) {
     client.to(`conversation:${conversationId}`).emit('user-typing', {
       userId: client.data.userId,
+      userName: client.data.userName || 'Atendente',
       conversationId,
       isTyping: true,
     });
@@ -119,6 +130,7 @@ export class WebsocketGateway
   ) {
     client.to(`conversation:${conversationId}`).emit('user-typing', {
       userId: client.data.userId,
+      userName: client.data.userName || 'Atendente',
       conversationId,
       isTyping: false,
     });

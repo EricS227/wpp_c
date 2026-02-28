@@ -2,10 +2,15 @@ import { create } from 'zustand';
 import { Conversation } from '@/types/conversation';
 import { Message } from '@/types/message';
 
+interface TypingUser {
+  userName: string;
+}
+
 interface ChatState {
   conversations: Conversation[];
   selectedConversationId: string | null;
   messages: Record<string, Message[]>;
+  typingUsers: Record<string, Record<string, TypingUser>>; // convId -> { userId -> { userName } }
 
   setConversations: (conversations: Conversation[]) => void;
   selectConversation: (id: string | null) => void;
@@ -18,12 +23,15 @@ interface ChatState {
   updateConversation: (conversation: Partial<Conversation> & { id: string }) => void;
   incrementUnread: (conversationId: string) => void;
   resetUnread: (conversationId: string) => void;
+  setTyping: (conversationId: string, userId: string, userName: string, isTyping: boolean) => void;
+  clearTyping: (conversationId: string) => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
   conversations: [],
   selectedConversationId: null,
   messages: {},
+  typingUsers: {},
 
   setConversations: (conversations) => set({ conversations }),
 
@@ -80,4 +88,23 @@ export const useChatStore = create<ChatState>((set) => ({
         c.id === conversationId ? { ...c, unreadCount: 0 } : c,
       ),
     })),
+
+  setTyping: (conversationId, userId, userName, isTyping) =>
+    set((state) => {
+      const convTyping = { ...(state.typingUsers[conversationId] || {}) };
+      if (isTyping) {
+        convTyping[userId] = { userName };
+      } else {
+        delete convTyping[userId];
+      }
+      return {
+        typingUsers: { ...state.typingUsers, [conversationId]: convTyping },
+      };
+    }),
+
+  clearTyping: (conversationId) =>
+    set((state) => ({
+      typingUsers: { ...state.typingUsers, [conversationId]: {} },
+    })),
 }));
+

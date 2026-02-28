@@ -11,21 +11,23 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Phone, MessageSquare, Paperclip } from 'lucide-react';
 import apiClient from '@/lib/api-client';
-import { getSocket } from '@/lib/socket';
 import { cleanPhone } from '@/lib/utils';
 
 const EMPTY_MESSAGES: any[] = [];
+const EMPTY_TYPING: Record<string, { userName: string }> = {};
 
 export function ChatWindow() {
   const selectedId = useChatStore((s) => s.selectedConversationId);
   const conversations = useChatStore((s) => s.conversations);
   const allMessages = useChatStore((s) => s.messages);
   const resetUnread = useChatStore((s) => s.resetUnread);
+  const clearTyping = useChatStore((s) => s.clearTyping);
+  const allTypingUsers = useChatStore((s) => s.typingUsers);
+  const typingUsers = (selectedId && allTypingUsers[selectedId]) || EMPTY_TYPING;
   const messages = selectedId ? allMessages[selectedId] ?? EMPTY_MESSAGES : EMPTY_MESSAGES;
   const { joinConversation, leaveConversation } = useSocket();
   const scrollRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
-  const [typingUsers, setTypingUsers] = useState<Record<string, string>>({});
 
   const [droppedFile, setDroppedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -35,38 +37,11 @@ export function ChatWindow() {
 
   useMessages(selectedId);
 
-  // Typing indicator listener
-  useEffect(() => {
-    const socket = getSocket();
-    if (!socket) return;
-
-    const handleTyping = (data: {
-      userId: string;
-      conversationId: string;
-      isTyping: boolean;
-    }) => {
-      if (data.conversationId !== selectedId) return;
-      setTypingUsers((prev) => {
-        if (data.isTyping) {
-          return { ...prev, [data.userId]: data.userId };
-        }
-        const next = { ...prev };
-        delete next[data.userId];
-        return next;
-      });
-    };
-
-    socket.on('user-typing', handleTyping);
-    return () => {
-      socket.off('user-typing', handleTyping);
-    };
-  }, [selectedId]);
-
   // Join/leave conversation room
   useEffect(() => {
     if (!selectedId) return;
     joinConversation(selectedId);
-    setTypingUsers({});
+    clearTyping(selectedId);
     isAtBottomRef.current = true;
 
     // Reset badge immediately and notify server
@@ -96,6 +71,14 @@ export function ChatWindow() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // Auto-scroll when typing indicator appears
+  const typingCount = Object.keys(typingUsers).length;
+  useEffect(() => {
+    if (typingCount > 0 && isAtBottomRef.current && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [typingCount]);
 
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
@@ -144,6 +127,8 @@ export function ChatWindow() {
     .slice(0, 2)
     .toUpperCase();
 
+  const typingNames = Object.values(typingUsers).map((u) => u.userName);
+
   return (
     <div
       className="flex flex-1 flex-col bg-gray-50 relative"
@@ -179,10 +164,18 @@ export function ChatWindow() {
             {conversation.customerName || cleanPhone(conversation.customerPhone)}
           </h3>
           <div className="flex items-center gap-2">
-            <Phone className="h-3 w-3 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">
-              {cleanPhone(conversation.customerPhone)}
-            </span>
+            {typingNames.length > 0 ? (
+              <span className="text-xs text-green-600 font-medium animate-pulse">
+                {typingNames.join(', ')} digitando...
+              </span>
+            ) : (
+              <>
+                <Phone className="h-3 w-3 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">
+                  {cleanPhone(conversation.customerPhone)}
+                </span>
+              </>
+            )}
           </div>
         </div>
         <Badge
@@ -213,16 +206,7 @@ export function ChatWindow() {
             />
           ))
         )}
-        {Object.keys(typingUsers).length > 0 && (
-          <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
-            <span className="flex gap-1">
-              <span className="animate-bounce" style={{ animationDelay: '0ms' }}>.</span>
-              <span className="animate-bounce" style={{ animationDelay: '150ms' }}>.</span>
-              <span className="animate-bounce" style={{ animationDelay: '300ms' }}>.</span>
-            </span>
-            digitando
-          </div>
-        )}
+        {typingNames.length > 0 && <TypingBubble names={typingNames} />}
       </div>
 
       {/* Input */}
@@ -249,6 +233,38 @@ export function ChatWindow() {
           onClearDroppedFile={() => setDroppedFile(null)}
         />
       )}
+    </div>
+  );
+}
+
+/** WhatsApp-style typing indicator bubble */
+function TypingBubble({ names }: { names: string[] }) {
+  const label = names.length === 1
+    ? `${names[0]} digitando`
+    : `${names.join(', ')} digitando`;
+
+  return (
+    <div className="flex items-end gap-2 mb-2">
+      <div className="bg-white rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm border border-gray-100 max-w-[240px]">
+        <div className="flex items-center gap-3">
+          {/* Animated dots */}
+          <div className="flex gap-[5px] items-center">
+            <span
+              className="block w-[7px] h-[7px] rounded-full bg-green-500"
+              style={{ animation: 'typingDot 1.4s infinite ease-in-out', animationDelay: '0s' }}
+            />
+            <span
+              className="block w-[7px] h-[7px] rounded-full bg-green-500"
+              style={{ animation: 'typingDot 1.4s infinite ease-in-out', animationDelay: '0.2s' }}
+            />
+            <span
+              className="block w-[7px] h-[7px] rounded-full bg-green-500"
+              style={{ animation: 'typingDot 1.4s infinite ease-in-out', animationDelay: '0.4s' }}
+            />
+          </div>
+          <span className="text-xs text-gray-500 font-medium truncate">{label}</span>
+        </div>
+      </div>
     </div>
   );
 }

@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 
+
 const STATUS_FILTERS = [
   { value: '', label: 'Todas' },
   { value: 'OPEN', label: 'Abertas' },
@@ -31,6 +32,7 @@ export function ConversationList() {
   const conversations = useChatStore((s) => s.conversations);
   const selectedId = useChatStore((s) => s.selectedConversationId);
   const selectConversation = useChatStore((s) => s.selectConversation);
+  const typingUsers = useChatStore((s) => s.typingUsers);
 
   const filtered = conversations.filter((c) => {
     const term = search.toLowerCase();
@@ -149,9 +151,29 @@ export function ConversationList() {
                     )}
                   </div>
                   <div className="flex items-center justify-between mt-1">
-                    <p className="text-xs text-muted-foreground truncate">
-                      {lastMessage?.content || 'Sem mensagens'}
-                    </p>
+                    {(() => {
+                      const convTyping = typingUsers[conv.id] || {};
+                      const typingNames = Object.values(convTyping).map((u) => u.userName);
+                      if (typingNames.length > 0) {
+                        return (
+                          <div className="flex items-center gap-1.5">
+                            <span className="flex gap-[3px] items-center">
+                              <span className="block w-[5px] h-[5px] rounded-full bg-green-500" style={{ animation: 'typingDot 1.4s infinite ease-in-out', animationDelay: '0s' }} />
+                              <span className="block w-[5px] h-[5px] rounded-full bg-green-500" style={{ animation: 'typingDot 1.4s infinite ease-in-out', animationDelay: '0.2s' }} />
+                              <span className="block w-[5px] h-[5px] rounded-full bg-green-500" style={{ animation: 'typingDot 1.4s infinite ease-in-out', animationDelay: '0.4s' }} />
+                            </span>
+                            <span className="text-xs text-green-600 font-medium truncate">
+                              {typingNames.length === 1 ? `${typingNames[0]} digitando...` : 'digitando...'}
+                            </span>
+                          </div>
+                        );
+                      }
+                      return (
+                        <p className="text-xs text-muted-foreground truncate">
+                          {lastMessage?.content || 'Sem mensagens'}
+                        </p>
+                      );
+                    })()}
                     {conv.unreadCount > 0 && (
                       <Badge className="ml-2 bg-green-500 text-white text-xs min-w-[20px] justify-center">
                         {conv.unreadCount}

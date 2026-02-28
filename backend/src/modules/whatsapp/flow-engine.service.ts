@@ -1,7 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WhatsappService } from './whatsapp.service';
 import { DepartmentRoutingService } from '../departments/department-routing.service';
+import { WebsocketGateway } from '../websocket/websocket.gateway';
 
 /**
  * Maps user input to department slugs.
@@ -69,7 +71,31 @@ export class FlowEngineService {
     private prisma: PrismaService,
     private whatsappService: WhatsappService,
     private departmentRoutingService: DepartmentRoutingService,
+    private moduleRef: ModuleRef,
   ) { }
+
+  private getWebsocketGateway(): WebsocketGateway | null {
+    try {
+      return this.moduleRef.get(WebsocketGateway, { strict: false });
+    } catch {
+      return null;
+    }
+  }
+
+  private async emitBotTyping(conversationId: string, isTyping: boolean) {
+    const gateway = this.getWebsocketGateway();
+    if (!gateway) return;
+    gateway.emitToConversation(conversationId, 'user-typing', {
+      userId: 'bot',
+      userName: '🤖 Bot',
+      conversationId,
+      isTyping,
+    });
+  }
+
+  private sleep(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
 
   processMenuChoice(input: string): string | null {
     const key = normalizeInput(input);
@@ -178,6 +204,10 @@ export class FlowEngineService {
     const meta = (fullConv.metadata as any) || {};
     const sendTo = meta.chatId || fullConv.customerPhone;
 
+    // Emit bot typing indicator
+    await this.emitBotTyping(conversation.id, true);
+    await this.sleep(1200);
+
     await this.whatsappService.sendTextMessage(
       fullConv.company.whatsappAccessToken,
       fullConv.company.whatsappPhoneNumberId,
@@ -196,6 +226,8 @@ export class FlowEngineService {
         isBot: true,
       },
     });
+
+    await this.emitBotTyping(conversation.id, false);
   }
 
   async sendGreeting(conversation: {
@@ -218,6 +250,10 @@ export class FlowEngineService {
     const meta = (fullConv.metadata as any) || {};
     const sendTo = meta.chatId || fullConv.customerPhone;
 
+    // Emit bot typing indicator
+    await this.emitBotTyping(conversation.id, true);
+    await this.sleep(1500);
+
     await this.whatsappService.sendTextMessage(
       fullConv.company.whatsappAccessToken,
       fullConv.company.whatsappPhoneNumberId,
@@ -236,6 +272,8 @@ export class FlowEngineService {
         isBot: true,
       },
     });
+
+    await this.emitBotTyping(conversation.id, false);
   }
 
   async handleInvalidChoice(conversation: {
@@ -255,6 +293,10 @@ export class FlowEngineService {
     const invalidText = 'Opção inválida. Por favor escolha 1, 2, 3 ou 4.';
     const menuText = this.getDefaultGreeting(fullConv.company.name);
 
+    // Emit bot typing indicator
+    await this.emitBotTyping(conversation.id, true);
+    await this.sleep(800);
+
     await this.whatsappService.sendTextMessage(
       fullConv.company.whatsappAccessToken,
       fullConv.company.whatsappPhoneNumberId,
@@ -273,6 +315,9 @@ export class FlowEngineService {
       },
     });
 
+    // Brief pause before sending menu again
+    await this.sleep(800);
+
     await this.whatsappService.sendTextMessage(
       fullConv.company.whatsappAccessToken,
       fullConv.company.whatsappPhoneNumberId,
@@ -290,5 +335,7 @@ export class FlowEngineService {
         isBot: true,
       },
     });
+
+    await this.emitBotTyping(conversation.id, false);
   }
 }

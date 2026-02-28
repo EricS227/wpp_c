@@ -141,6 +141,21 @@ export function useSocket() {
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
     });
 
+    // 💬 Typing indicator — write to global store
+    socket.on('user-typing', (data: {
+      userId: string;
+      userName: string;
+      conversationId: string;
+      isTyping: boolean;
+    }) => {
+      useChatStore.getState().setTyping(
+        data.conversationId,
+        data.userId,
+        data.userName || 'Atendente',
+        data.isTyping,
+      );
+    });
+
     return () => {
       unsubscribeStatus();
       socket.off('message-received');
@@ -151,6 +166,7 @@ export function useSocket() {
       socket.off('conversation-transferred');
       socket.off('new_conversation');
       socket.off('conversation_transferred');
+      socket.off('user-typing');
       disconnectSocket();
     };
   }, [token]);

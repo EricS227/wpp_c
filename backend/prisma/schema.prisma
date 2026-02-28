@@ -64,7 +64,6 @@ model User {
   departmentId      String?
   email             String     @unique
   passwordHash      String
-  plainPassword     String?
   name              String
   role              Role       @default(AGENT)
   isActive          Boolean    @default(true)

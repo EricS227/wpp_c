@@ -20,7 +20,6 @@ export class UsersService {
         departmentId: true,
         department: { select: { name: true } },
         isActive: true,
-        plainPassword: true,
         createdAt: true,
       },
       orderBy: { name: 'asc' },
@@ -37,7 +36,6 @@ export class UsersService {
         role: true,
         companyId: true,
         isActive: true,
-        plainPassword: true,
         createdAt: true,
       },
     });
@@ -56,7 +54,6 @@ export class UsersService {
       data: {
         email: dto.email,
         passwordHash,
-        plainPassword: dto.password,
         name: dto.name,
         role: dto.role || 'AGENT',
         companyId,
@@ -67,7 +64,6 @@ export class UsersService {
         name: true,
         role: true,
         isActive: true,
-        plainPassword: true,
         createdAt: true,
       },
     });
@@ -78,7 +74,6 @@ export class UsersService {
     const data: any = { ...rest };
     if (password) {
       data.passwordHash = await bcrypt.hash(password, 10);
-      data.plainPassword = password;
 
       // If password is changed, resolve any pending reset requests
       await this.prisma.passwordResetRequest.updateMany({
@@ -95,7 +90,6 @@ export class UsersService {
         name: true,
         role: true,
         isActive: true,
-        plainPassword: true,
       },
     });
   }

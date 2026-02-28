@@ -12,7 +12,6 @@ export interface User {
   departmentId?: string | null;
   department?: { name: string } | null;
   isActive: boolean;
-  plainPassword?: string;
 }
 
 export interface AuthResponse {
