@@ -43,6 +43,7 @@ export class ConversationsController {
       query,
       take ? parseInt(take, 10) : 50,
       skip ? parseInt(skip, 10) : 0,
+      user,
     );
   }
 

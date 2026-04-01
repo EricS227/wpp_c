@@ -3,6 +3,7 @@ import { SettingsService } from './settings.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role } from '@prisma/client';
 
 @Controller('settings')
@@ -12,12 +13,12 @@ export class SettingsController {
     constructor(private readonly settingsService: SettingsService) { }
 
     @Get()
-    async getSettings() {
-        return this.settingsService.getSettings();
+    async getSettings(@CurrentUser() user: any) {
+        return this.settingsService.getSettings(user.companyId);
     }
 
     @Put()
-    async updateSettings(@Body() data: any) {
-        return this.settingsService.updateSettings(data);
+    async updateSettings(@CurrentUser() user: any, @Body() data: any) {
+        return this.settingsService.updateSettings(user.companyId, data);
     }
 }

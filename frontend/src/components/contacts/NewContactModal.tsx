@@ -35,8 +35,8 @@ export function NewContactModal({ isOpen, onClose, onCreated }: NewContactModalP
 
         // Formatar telefone ex: +55 (11) 99999-9999 ou numero limpo
         const phone = customerPhone.replace(/\D/g, '');
-        if (phone.length < 10) {
-            setError('Telefone invalido.');
+        if (phone.length < 10 || phone.length > 15) {
+            setError('Telefone inválido. Use o formato com DDD, ex: 5511999999999');
             return;
         }
 

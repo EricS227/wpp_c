@@ -5,8 +5,9 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class SettingsService {
     constructor(private prisma: PrismaService) { }
 
-    async getSettings() {
+    async getSettings(companyId: string) {
         const company = await this.prisma.company.findFirst({
+            where: { id: companyId },
             select: {
                 id: true,
                 greetingMessage: true,
@@ -26,8 +27,8 @@ export class SettingsService {
         return company;
     }
 
-    async updateSettings(data: any) {
-        const company = await this.prisma.company.findFirst();
+    async updateSettings(companyId: string, data: any) {
+        const company = await this.prisma.company.findFirst({ where: { id: companyId } });
         if (!company) {
             throw new NotFoundException('Company not found');
         }
