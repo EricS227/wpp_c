@@ -20,6 +20,7 @@ export class WahaPollingService implements OnModuleInit, OnModuleDestroy {
   private readonly wahaApiUrl: string;
   private readonly wahaApiKey: string;
   private readonly wahaSession: string;
+  private readonly wahaSessions: string[];
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private polling = false;
 
@@ -42,6 +43,9 @@ export class WahaPollingService implements OnModuleInit, OnModuleDestroy {
     this.wahaApiKey = this.configService.get<string>('WAHA_API_KEY') || '';
     this.wahaSession =
       this.configService.get<string>('WAHA_SESSION') || 'default';
+    const sessionsEnv =
+      this.configService.get<string>('WAHA_SESSIONS') || this.wahaSession;
+    this.wahaSessions = sessionsEnv.split(',').map((s) => s.trim());
     this.backendUrl =
       this.configService.get<string>('BACKEND_URL') ||
       'http://192.168.10.156:4000';
@@ -83,12 +87,28 @@ export class WahaPollingService implements OnModuleInit, OnModuleDestroy {
     if (this.polling) return;
     this.polling = true;
     try {
+      const company = await this.prisma.company.findFirst();
+      if (!company) {
+        this.polling = false;
+        return;
+      }
+
+      for (const session of this.wahaSessions) {
+        await this.pollSession(session, company);
+      }
+    } catch (error: any) {
+      this.logger.error(`Polling error: ${error.code || ''} ${error.message}`);
+    }
+    this.polling = false;
+  }
+
+  private async pollSession(session: string, company: any) {
+    try {
       this.logger.debug(
-        `Polling ${this.wahaApiUrl}/api/${this.wahaSession}/chats/overview`,
+        `Polling ${this.wahaApiUrl}/api/${session}/chats/overview`,
       );
-      // Get chats with unread messages
       const res = await axios.get(
-        `${this.wahaApiUrl}/api/${this.wahaSession}/chats/overview`,
+        `${this.wahaApiUrl}/api/${session}/chats/overview`,
         {
           params: { limit: 50 },
           headers: this.wahaHeaders(),
@@ -96,7 +116,6 @@ export class WahaPollingService implements OnModuleInit, OnModuleDestroy {
       );
 
       const chats: any[] = res.data || [];
-      // WAHA overview returns unreadCount (and sometimes isGroup) inside _chat
       const unreadChats = chats
         .map((c: any) => ({
           ...c,
@@ -105,29 +124,23 @@ export class WahaPollingService implements OnModuleInit, OnModuleDestroy {
         }))
         .filter((c: any) => c.unreadCount > 0 && !c.isGroup);
 
-      if (unreadChats.length === 0) {
-        this.polling = false;
-        return;
-      }
+      if (unreadChats.length === 0) return;
 
-      this.logger.log(`Found ${unreadChats.length} chats with unread messages`);
-
-      const company = await this.prisma.company.findFirst();
-      if (!company) {
-        this.polling = false;
-        return;
-      }
+      this.logger.log(
+        `[${session}] Found ${unreadChats.length} chats with unread messages`,
+      );
 
       for (const chat of unreadChats) {
-        await this.processChat(chat, company);
+        await this.processChat(chat, company, session);
       }
     } catch (error: any) {
-      this.logger.error(`Polling error: ${error.code || ''} ${error.message}`);
+      this.logger.error(
+        `[${session}] Polling error: ${error.code || ''} ${error.message}`,
+      );
     }
-    this.polling = false;
   }
 
-  private async processChat(chat: any, company: any) {
+  private async processChat(chat: any, company: any, session = 'default') {
     try {
       const chatId =
         typeof chat.id === 'string' ? chat.id : chat.id?._serialized || '';
@@ -135,7 +148,7 @@ export class WahaPollingService implements OnModuleInit, OnModuleDestroy {
 
       // Fetch recent messages for this chat
       const msgRes = await axios.get(
-        `${this.wahaApiUrl}/api/${this.wahaSession}/chats/${encodeURIComponent(chatId)}/messages`,
+        `${this.wahaApiUrl}/api/${session}/chats/${encodeURIComponent(chatId)}/messages`,
         {
           params: { limit: chat.unreadCount, downloadMedia: true },
           headers: this.wahaHeaders(),
@@ -268,6 +281,7 @@ export class WahaPollingService implements OnModuleInit, OnModuleDestroy {
           customerName,
           chatId,
           contactProfile,
+          session,
         );
 
         // Reabrir conversa resolvida
@@ -335,6 +349,7 @@ export class WahaPollingService implements OnModuleInit, OnModuleDestroy {
             chatId,
             contactProfile,
             quotedMsg,
+            session,
           );
           continue;
         }
@@ -372,6 +387,7 @@ export class WahaPollingService implements OnModuleInit, OnModuleDestroy {
             chatId,
             contactProfile,
             quotedMsg,
+            session,
           );
           continue;
         }
@@ -395,6 +411,7 @@ export class WahaPollingService implements OnModuleInit, OnModuleDestroy {
             chatId,
             contactProfile,
             quotedMsg,
+            session,
           );
           continue;
         }
@@ -410,13 +427,14 @@ export class WahaPollingService implements OnModuleInit, OnModuleDestroy {
           chatId,
           contactProfile,
           quotedMsg,
+          session,
         );
       }
 
       // Mark chat as read in WAHA
       try {
         await axios.post(
-          `${this.wahaApiUrl}/api/${this.wahaSession}/chats/${encodeURIComponent(chatId)}/messages/read`,
+          `${this.wahaApiUrl}/api/${session}/chats/${encodeURIComponent(chatId)}/messages/read`,
           {},
           { headers: this.wahaHeaders() },
         );
