@@ -99,7 +99,7 @@ export class WahaWebhookController {
       this.logger.log(`[WAHA] Tentando resolver @lid: ${chatId}`);
 
       // 1 & 2. Tentar via WAHA API (Endpoints diretos e Contacts)
-      const resolvedFromApi = await this.whatsappService.resolveLid(chatId);
+      const resolvedFromApi = await this.whatsappService.resolveLid(chatId, wahaSession);
 
       if (resolvedFromApi) {
         customerPhone = resolvedFromApi;
@@ -136,7 +136,7 @@ export class WahaWebhookController {
       }
     }
 
-    const contactInfo = await this.whatsappService.getContactInfo(customerPhone === chatId ? chatId : `${customerPhone}@c.us`);
+    const contactInfo = await this.whatsappService.getContactInfo(customerPhone === chatId ? chatId : `${customerPhone}@c.us`, wahaSession);
     if (contactInfo?.number) {
       // Se não era lid, ou se conseguimos pegar info do número resolvido
       if (customerPhone === chatId) customerPhone = contactInfo.number;
@@ -499,6 +499,7 @@ export class WahaWebhookController {
               company.whatsappPhoneNumberId,
               sendTo,
               `✅ Um atendente do setor * ${deptName} * está disponível!\n\nConectando com * ${agent.name}*... 😊`,
+              wahaSession,
             )
             .catch(() => { });
         }
@@ -524,6 +525,7 @@ export class WahaWebhookController {
           company.whatsappAccessToken,
           company.whatsappPhoneNumberId,
           whatsappMessageId,
+          wahaSession,
         )
         .catch(() => { });
       return;
@@ -550,6 +552,7 @@ export class WahaWebhookController {
         company.whatsappAccessToken,
         company.whatsappPhoneNumberId,
         whatsappMessageId,
+        wahaSession,
       )
       .catch(() => { });
   }

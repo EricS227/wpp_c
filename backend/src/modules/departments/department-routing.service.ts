@@ -405,6 +405,7 @@ export class DepartmentRoutingService {
           conv.company.whatsappPhoneNumberId,
           to,
           text,
+          conv.wahaSession,
         );
       }
     } catch (err) {

@@ -213,6 +213,7 @@ export class FlowEngineService {
       fullConv.company.whatsappPhoneNumberId,
       sendTo,
       text,
+      fullConv.wahaSession,
     );
 
     await this.prisma.message.create({
@@ -259,6 +260,7 @@ export class FlowEngineService {
       fullConv.company.whatsappPhoneNumberId,
       sendTo,
       text,
+      fullConv.wahaSession,
     );
 
     await this.prisma.message.create({
@@ -302,6 +304,7 @@ export class FlowEngineService {
       fullConv.company.whatsappPhoneNumberId,
       sendTo,
       invalidText,
+      fullConv.wahaSession,
     );
     await this.prisma.message.create({
       data: {
@@ -323,6 +326,7 @@ export class FlowEngineService {
       fullConv.company.whatsappPhoneNumberId,
       sendTo,
       menuText,
+      fullConv.wahaSession,
     );
     await this.prisma.message.create({
       data: {

@@ -179,7 +179,7 @@ export class WahaPollingService implements OnModuleInit, OnModuleDestroy {
         let contactInfo: any = null;
 
         try {
-          contactInfo = await this.whatsappService.getContactInfo(chatId);
+          contactInfo = await this.whatsappService.getContactInfo(chatId, session);
           if (contactInfo?.number) {
             customerPhone = contactInfo.number;
             contactProfile = {
