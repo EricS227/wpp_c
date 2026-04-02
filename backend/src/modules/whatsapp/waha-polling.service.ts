@@ -176,18 +176,25 @@ export class WahaPollingService implements OnModuleInit, OnModuleDestroy {
         // Resolve LID to real phone
         let customerPhone = chatId;
         let contactProfile: any = null;
+        let contactInfo: any = null;
 
-        const contactInfo = await this.whatsappService.getContactInfo(chatId);
-        if (contactInfo?.number) {
-          customerPhone = contactInfo.number;
-          contactProfile = {
-            pushname: contactInfo.pushname,
-            name: contactInfo.name,
-            isBusiness: contactInfo.isBusiness,
-            profilePictureURL: contactInfo.profilePictureURL,
-          };
-          this.logger.log(
-            `Resolved ${chatId} → ${customerPhone} (${contactInfo.pushname || 'no name'})`,
+        try {
+          contactInfo = await this.whatsappService.getContactInfo(chatId);
+          if (contactInfo?.number) {
+            customerPhone = contactInfo.number;
+            contactProfile = {
+              pushname: contactInfo.pushname,
+              name: contactInfo.name,
+              isBusiness: contactInfo.isBusiness,
+              profilePictureURL: contactInfo.profilePictureURL,
+            };
+            this.logger.log(
+              `Resolved ${chatId} → ${customerPhone} (${contactInfo.pushname || 'no name'})`,
+            );
+          }
+        } catch (err: any) {
+          this.logger.warn(
+            `[${session}] Não foi possível resolver contato ${chatId}: ${err.message}. Usando ID bruto.`,
           );
         }
 
