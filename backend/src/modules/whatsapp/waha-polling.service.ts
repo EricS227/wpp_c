@@ -312,39 +312,8 @@ export class WahaPollingService implements OnModuleInit, OnModuleDestroy {
         }
 
         if (conversation.flowState === 'GREETING') {
-          if (!conversation.greetingSentAt) {
-            // Claim atômico: evita duplicidade com o webhook processando o mesmo evento
-            const claimed = await this.prisma.conversation.updateMany({
-              where: { id: conversation.id, flowState: 'GREETING', greetingSentAt: null },
-              data: { greetingSentAt: new Date() },
-            });
-            if (claimed.count > 0) {
-              await this.flowEngineService.sendGreeting(conversation);
-            }
-          } else {
-            const body = (msg.body || '').trim();
-            const slugHint = this.flowEngineService.processMenuChoice(body);
-            if (slugHint) {
-              const resolvedDept =
-                await this.flowEngineService.resolveDepartmentSlug(
-                  company.id,
-                  slugHint,
-                );
-              if (resolvedDept) {
-                await this.departmentRoutingService.routeToDepartment(
-                  conversation.id,
-                  resolvedDept.slug,
-                  company.id,
-                );
-              } else {
-                await this.flowEngineService.handleInvalidChoice(conversation);
-              }
-            } else {
-              await this.flowEngineService.handleInvalidChoice(conversation);
-            }
-          }
-          // Salvar a mensagem ANTES de continuar — garante idempotência no próximo ciclo
-          // (sem isso, markAsRead falhar causa reprocessamento a cada 5s → loop de "indisponíveis")
+          // Salvar a mensagem PRIMEIRO — garante idempotência no próximo ciclo
+          // mesmo que o envio de resposta falhe (ex: @lid não resolvível pelo WAHA)
           await this.messagesService.handleIncomingMessage(
             company.id,
             customerPhone,
@@ -358,6 +327,46 @@ export class WahaPollingService implements OnModuleInit, OnModuleDestroy {
             quotedMsg,
             session,
           );
+
+          if (!conversation.greetingSentAt) {
+            // Claim atômico: evita duplicidade com o webhook processando o mesmo evento
+            const claimed = await this.prisma.conversation.updateMany({
+              where: { id: conversation.id, flowState: 'GREETING', greetingSentAt: null },
+              data: { greetingSentAt: new Date() },
+            });
+            if (claimed.count > 0) {
+              try {
+                await this.flowEngineService.sendGreeting(conversation);
+              } catch (err: any) {
+                this.logger.warn(`[${session}] Falha ao enviar saudação para ${customerPhone}: ${err.message}`);
+              }
+            }
+          } else {
+            const body = (msg.body || '').trim();
+            const slugHint = this.flowEngineService.processMenuChoice(body);
+            try {
+              if (slugHint) {
+                const resolvedDept =
+                  await this.flowEngineService.resolveDepartmentSlug(
+                    company.id,
+                    slugHint,
+                  );
+                if (resolvedDept) {
+                  await this.departmentRoutingService.routeToDepartment(
+                    conversation.id,
+                    resolvedDept.slug,
+                    company.id,
+                  );
+                } else {
+                  await this.flowEngineService.handleInvalidChoice(conversation);
+                }
+              } else {
+                await this.flowEngineService.handleInvalidChoice(conversation);
+              }
+            } catch (err: any) {
+              this.logger.warn(`[${session}] Falha ao processar menu para ${customerPhone}: ${err.message}`);
+            }
+          }
           continue;
         }
 
