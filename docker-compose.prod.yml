@@ -1,34 +1,23 @@
 services:
   nginx:
     image: nginx:alpine
-    container_name: wpp-nginx
+    container_name: wpp-dev-nginx
     ports:
-      - "8180:80"
+      - "5725:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       - frontend
       - backend
     restart: unless-stopped
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=gas_network"
-      - "traefik.http.routers.wpp-frontend.rule=Host(`velocewppconect.online`) || Host(`velocewpp.online`)"
-      - "traefik.http.routers.wpp-frontend.entrypoints=web"
-      - "traefik.http.routers.wpp-frontend.service=wpp-nginx"
-      - "traefik.http.routers.wpp-api.rule=Host(`api.velocewppconect.online`) || Host(`api.velocewpp.online`)"
-      - "traefik.http.routers.wpp-api.entrypoints=web"
-      - "traefik.http.routers.wpp-api.service=wpp-nginx"
-      - "traefik.http.services.wpp-nginx.loadbalancer.server.port=80"
     networks:
-      - wpp-network
-      - gas_network
+      - wpp-dev-network
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: wpp-frontend
+    container_name: wpp-dev-frontend
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
@@ -37,13 +26,13 @@ services:
       - "3000"
     restart: unless-stopped
     networks:
-      - wpp-network
+      - wpp-dev-network
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: wpp-backend
+    container_name: wpp-dev-backend
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
@@ -70,41 +59,40 @@ services:
       - redis
     restart: unless-stopped
     networks:
-      - wpp-network
+      - wpp-dev-network
 
   postgres:
     image: postgres:15-alpine
-    container_name: wpp-postgres
+    container_name: wpp-dev-postgres
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-whatsapp_db}
+      POSTGRES_DB: ${POSTGRES_DB:-whatsapp_db_dev}
       POSTGRES_USER: ${POSTGRES_USER:-whatsapp}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - dev_postgres_data:/var/lib/postgresql/data
     expose:
       - "5432"
     restart: unless-stopped
     networks:
-      - wpp-network
+      - wpp-dev-network
 
   redis:
     image: redis:7-alpine
-    container_name: wpp-redis
+    container_name: wpp-dev-redis
     command: redis-server --appendonly yes
     volumes:
-      - redis_data:/data
+      - dev_redis_data:/data
     expose:
       - "6379"
     restart: unless-stopped
     networks:
-      - wpp-network
+      - wpp-dev-network
 
 volumes:
-  postgres_data:
-  redis_data:
+  dev_postgres_data:
+  dev_redis_data:
 
 networks:
-  wpp-network:
+  wpp-dev-network:
+    name: wpp-dev-network
     driver: bridge
-  gas_network:
-    external: true

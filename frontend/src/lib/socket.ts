@@ -30,7 +30,7 @@ function setConnectionStatus(status: ConnectionStatus) {
  * Converte para o formato correto.
  */
 function getSocketServerUrl(): string {
-  const url = process.env.NEXT_PUBLIC_WS_URL || 'http://192.168.10.156:4000';
+  const url = process.env.NEXT_PUBLIC_WS_URL || 'http://192.168.10.156:5723';
   const trimmed = url.trim();
   if (trimmed.startsWith('ws://')) return 'http://' + trimmed.slice(5);
   if (trimmed.startsWith('wss://')) return 'https://' + trimmed.slice(6);

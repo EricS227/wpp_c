@@ -1,10 +1,11 @@
-import { IsUUID, IsOptional } from 'class-validator';
+import { IsUUID, IsOptional, IsString, IsNotEmpty } from 'class-validator';
 
 export class TransferConversationDto {
   @IsUUID()
   departmentId: string;
 
   @IsOptional()
-  @IsUUID()
+  @IsString()
+  @IsNotEmpty()
   userId?: string;
 }

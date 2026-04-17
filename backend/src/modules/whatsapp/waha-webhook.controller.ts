@@ -173,7 +173,8 @@ export class WahaWebhookController {
     if (payload.hasMedia && payload.media) {
       const mimetype = payload.media.mimetype || '';
       const originalMediaUrl = payload.media.url || undefined;
-      const base64Data = payload.media.data;
+      // WAHA pode enviar o base64 em media.data (eventos antigos) ou em _data.body (eventos novos)
+      const base64Data = payload.media.data || payload._data?.body;
 
       let folderType = 'documents';
       if (mimetype.startsWith('image/')) folderType = 'images';
@@ -208,12 +209,14 @@ export class WahaWebhookController {
         // Caso 2: WAHA enviou URL. Em vez de proxy, vamos baixar e salvar o arquivo
         // para garantir que replays funcionem corretamente e a URL não expire.
         try {
-          // Se for uma URL do WAHA, ele precisa do acesso (e pode precisar do backend rodando)
-          // Mas como o WAHA está na mesma rede/máquina, vamos tentar baixar o buffer
           const axios = require('axios');
           const wahaApiKey = process.env.WAHA_API_KEY || '';
           const wahaHeaders = wahaApiKey ? { 'X-Api-Key': wahaApiKey } : {};
-          const response = await axios.get(originalMediaUrl, { responseType: 'arraybuffer', headers: wahaHeaders });
+          // WAHA envia URL interna (ex: http://localhost:3000/api/files/...) inacessível do host.
+          // Substituir pelo host/porta real do WAHA configurado em WAHA_API_URL.
+          const wahaApiUrl = (process.env.WAHA_API_URL || 'http://192.168.10.156:3101').replace(/\/$/, '');
+          const downloadUrl = originalMediaUrl.replace(/^https?:\/\/[^/]+/, wahaApiUrl);
+          const response = await axios.get(downloadUrl, { responseType: 'arraybuffer', headers: wahaHeaders });
           const buffer = Buffer.from(response.data);
 
           let ext = mimetype.split('/')[1]?.split(';')[0];
@@ -280,10 +283,10 @@ export class WahaWebhookController {
       wahaSession,
     );
 
-    // If conversation was RESOLVED, reopen it and restart the bot flow
-    if (conversation.status === 'RESOLVED') {
+    // If conversation was RESOLVED or ARCHIVED, reopen it and restart the bot flow
+    if (conversation.status === 'RESOLVED' || conversation.status === 'ARCHIVED') {
       this.logger.log(
-        `[FLOW] Conversation RESOLVED — reopening and restarting bot for ${customerPhone}`,
+        `[FLOW] Conversation ${conversation.status} — reopening and restarting bot for ${customerPhone}`,
       );
       conversation = await this.prisma.conversation.update({
         where: { id: conversation.id },
@@ -295,7 +298,6 @@ export class WahaWebhookController {
           assignedAt: null,
           departmentId: null,
           routedAt: null,
-          timeoutAt: null,
         },
       });
     }
@@ -491,7 +493,7 @@ export class WahaWebhookController {
               company.whatsappAccessToken,
               company.whatsappPhoneNumberId,
               sendTo,
-              `✅ Um atendente do setor * ${deptName} * está disponível!\n\nConectando com * ${agent.name}*... 😊`,
+              `✅ Um atendente do setor *${deptName}* está disponível!\n\nConectando com *${agent.name}*... 😊`,
               wahaSession,
             )
             .catch(() => { });

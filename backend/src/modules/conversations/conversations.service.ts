@@ -242,7 +242,6 @@ export class ConversationsService {
           assignedAt: new Date(),
           departmentId: agent?.departmentId || null,
           routedAt: new Date(),
-          timeoutAt: null,
           unreadCount: 0,
         },
         include: { company: true }
@@ -350,7 +349,6 @@ export class ConversationsService {
         assignedAt: new Date(),
         departmentId: agent?.departmentId || conv.departmentId,
         routedAt: new Date(),
-        timeoutAt: null,
         unreadCount: 0,
       }
     });
@@ -458,7 +456,6 @@ export class ConversationsService {
         assignedUserId: userId,
         assignedAt: new Date(),
         flowState: 'ASSIGNED',
-        timeoutAt: null,
       },
       include: {
         assignedUser: { select: { id: true, name: true, email: true } },
@@ -516,7 +513,6 @@ export class ConversationsService {
       status: 'OPEN',
       flowState: 'DEPARTMENT_SELECTED',
       routedAt: new Date(),
-      timeoutAt: new Date(Date.now() + dept.responseTimeoutMinutes * 60 * 1000),
     };
 
     if (userId) {
@@ -528,7 +524,6 @@ export class ConversationsService {
         updateData.assignedUserId = userId;
         updateData.assignedAt = new Date();
         updateData.flowState = 'ASSIGNED';
-        updateData.timeoutAt = null;
 
         await this.prisma.assignment.create({
           data: { conversationId, userId },
@@ -623,6 +618,20 @@ export class ConversationsService {
       data: { unassignedAt: new Date() },
     });
 
+    // Record or clear attendance history before resetting state
+    // - Agent + dept present: record as a real attended session
+    // - No dept (GREETING cleanup): clear history so next visit starts fresh
+    const attendanceData: Record<string, any> = {};
+    if (conv.assignedUserId && conv.departmentId) {
+      attendanceData.lastDepartmentId = conv.departmentId;
+      attendanceData.lastAttendantId = conv.assignedUserId;
+      attendanceData.lastAttendedAt = new Date();
+    } else if (!conv.departmentId) {
+      attendanceData.lastDepartmentId = null;
+      attendanceData.lastAttendantId = null;
+      attendanceData.lastAttendedAt = null;
+    }
+
     // Reset conversation state completely so bot restarts on next contact
     return this.prisma.conversation.update({
       where: { id: conversationId },
@@ -634,8 +643,8 @@ export class ConversationsService {
         assignedAt: null,
         departmentId: null,
         routedAt: null,
-        timeoutAt: null,
         unreadCount: 0,
+        ...attendanceData,
       },
     });
   }

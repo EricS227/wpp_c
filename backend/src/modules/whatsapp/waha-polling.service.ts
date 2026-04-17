@@ -233,7 +233,10 @@ export class WahaPollingService implements OnModuleInit, OnModuleDestroy {
           // Converte URL interna do WAHA para o proxy do backend ou salva localmente
           if (rawUrl) {
             try {
-              const response = await axios.get(rawUrl, { responseType: 'arraybuffer', headers: this.wahaHeaders() });
+              // WAHA envia URL interna (ex: http://localhost:3000/...) inacessível do host.
+              // Substituir pelo host/porta real do WAHA.
+              const downloadUrl = rawUrl.replace(/^https?:\/\/[^/]+/, this.wahaApiUrl.replace(/\/$/, ''));
+              const response = await axios.get(downloadUrl, { responseType: 'arraybuffer', headers: this.wahaHeaders() });
               const buffer = Buffer.from(response.data);
               let ext = mimetype.split('/')[1]?.split(';')[0];
               if (!ext || ext === 'ogg; codecs=opus') ext = 'ogg';
@@ -301,10 +304,10 @@ export class WahaPollingService implements OnModuleInit, OnModuleDestroy {
         // Re-fetch para garantir estado atualizado (webhook pode ter alterado entre o fetch e agora)
         conversation = (await this.prisma.conversation.findUnique({ where: { id: conversation.id } })) ?? conversation;
 
-        // Reabrir conversa resolvida
-        if (conversation.status === 'RESOLVED') {
+        // Reabrir conversa resolvida ou arquivada
+        if (conversation.status === 'RESOLVED' || conversation.status === 'ARCHIVED') {
           this.logger.log(
-            `[FLOW] Conversa RESOLVED — reabrindo para ${customerPhone}`,
+            `[FLOW] Conversa ${conversation.status} — reabrindo para ${customerPhone}`,
           );
           conversation = await this.prisma.conversation.update({
             where: { id: conversation.id },
@@ -316,7 +319,6 @@ export class WahaPollingService implements OnModuleInit, OnModuleDestroy {
               assignedAt: null,
               departmentId: null,
               routedAt: null,
-              timeoutAt: null,
             },
           });
         }
